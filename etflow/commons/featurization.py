@@ -1,7 +1,14 @@
 # allowable multiple choice node and edge features
+from typing import Tuple
 from rdkit.Chem.rdchem import ChiralType
 from rdkit import Chem
 import numpy as np
+import torch
+from datamol.types import Mol
+import datamol as dm
+from .chirality import get_chiral_tensors
+from .covmat import build_conformer
+from .edge import compute_edge_index
 
 # similar to GeoMol
 chirality = {
@@ -40,6 +47,97 @@ allowable_features = {
     "possible_is_conjugated_list": [False, True],
 }
 
+
+class MoleculeFeaturizer:
+    '''A Featurizer Class for Molecules.
+    - Give smiles, get mol objects, atom features, bond features, etc.
+    - Caching to avoid recomputation.
+
+    Parameters
+    ----------
+    use_ogb_features: bool, default=True
+        If True, 10-dimensional atom features based on OGB are computed,
+        Otherwise, atomic charges are used.
+    use_edge_feat: bool, default=False
+        If True, edge features are computed.
+    '''
+    def __init__(self, use_ogb_feat: bool = True, use_edge_feat: bool = False):
+        # smiles based cache
+        self.cache = {}
+        self.use_ogb_feat = use_ogb_feat
+        self.use_edge_feat = use_edge_feat
+
+    def get_mol(self, smiles: str) -> Mol:
+        return dm.to_mol(smiles, remove_hs=False, ordered=True)
+    
+    def get_atom_features(self, smiles: str) -> torch.Tensor:
+        # check if cached
+        if smiles in self.cache and "atom_features" in self.cache[smiles]:
+            return self.cache[smiles]["atom_features"]
+    
+        # compute atom features
+        mol = self.get_mol(smiles)
+
+        if self.use_ogb_feat:
+            atom_features = torch.tensor(
+                [atom_to_feature_vector(atom) for atom in mol.GetAtoms()],
+                dtype=torch.float32,
+            ) # (n_atoms, 10)
+        else:
+            atom_features = torch.tensor(
+                [atom.GetFormalCharge() for atom in mol.GetAtoms()],
+                dtype=torch.float32,
+            ).view(-1, 1) # (n_atoms, 1)
+
+        # add smiles to cache
+        if smiles not in self.cache:
+            self.cache[smiles] = {}
+        
+        self.cache[smiles]["atom_features"] = atom_features
+        return atom_features
+
+    def get_chiral_centers(self, smiles: str) -> torch.Tensor:
+        # check if cached
+        if smiles in self.cache and "chiral_centers" in self.cache[smiles]:
+            return self.cache[smiles]["chiral_centers"]
+    
+        # compute chiral centers
+        mol = self.get_mol(smiles)
+        chiral_index, chiral_nbr_index, chiral_tag = get_chiral_tensors(mol)
+
+        # add smiles to cache
+        if smiles not in self.cache:
+            self.cache[smiles] = {}
+        
+        self.cache[smiles]["chiral_centers"] = (chiral_index, chiral_nbr_index, chiral_tag)
+        return chiral_index, chiral_nbr_index, chiral_tag
+
+    def get_mol_with_conformer(self, smiles: str, positions: torch.Tensor) -> Mol:
+        mol = self.get_mol(smiles)
+        mol.AddConformer(build_conformer(positions))
+        return mol
+
+    def get_edge_index(self, smiles: str) -> Tuple[torch.Tensor, torch.Tensor]:
+        '''Returns edge index and edge attributes for a given smiles.'''
+        # check if cached
+        if smiles in self.cache and "edge_index" in self.cache[smiles]:
+            return self.cache[smiles]["edge_index"], self.cache[smiles]["edge_attr"]
+    
+        # compute edge index
+        mol = self.get_mol(smiles)
+        edge_index, edge_attr = compute_edge_index(
+            mol, with_edge_attr=self.use_edge_feat
+        )
+
+        # add smiles to cache
+        if smiles not in self.cache:
+            self.cache[smiles] = {}
+        
+        self.cache[smiles]["edge_index"] = edge_index
+        self.cache[smiles]["edge_attr"] = edge_attr
+        return edge_index, edge_attr
+
+    
 def get_atomic_number_and_charge(mol: Chem.Mol):
     """Returns atoms number and charge for rdkit molecule"""
     return np.array(

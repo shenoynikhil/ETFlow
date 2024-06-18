@@ -6,7 +6,6 @@ from torch_sparse import coalesce
 
 from .featurization import bond_to_feature_vector
 from rdkit.Chem.rdchem import BondType as BT
-from .utils import BOND_TYPES
 
 BOND_TYPES = {t: i for i, t in enumerate(BT.names.values())}
 

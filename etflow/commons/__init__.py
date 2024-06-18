@@ -13,8 +13,9 @@ from .io import (
 from .covmat import build_conformer
 from .featurization import (
     atom_to_feature_vector,
+    bond_to_feature_vector,
     get_atomic_number_and_charge,
-    bond_to_feature_vector
+    MoleculeFeaturizer
 )
 from .sample import batched_sampling
 from .utils import Queue
@@ -22,6 +23,7 @@ from .utils import Queue
 __all__ = [
     "atom_to_feature_vector",
     "bond_to_feature_vector",
+    "MoleculeFeaturizer",
     "Queue",
     "load_json",
     "load_pkl",
