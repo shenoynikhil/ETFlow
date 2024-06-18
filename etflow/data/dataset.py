@@ -1,4 +1,3 @@
-from sklearn.utils import Bunch
 from torch_geometric.data import Data, Dataset
 
 from etflow.commons import MoleculeFeaturizer
@@ -11,20 +10,12 @@ DATASET_MAPPING = {"geom": GEOM}
 class EuclideanDataset(Dataset):
     """Returns 3D Graph for different datasets
 
-    Usage:
-
+    Usage
+    -----
     ```python
     from etflow.data import EuclideanDataset
-
     dataset = EuclideanDataset("geom")
-
-    # with node features passed
-    dataset = EuclideanDataset("geom", with_node_feat=True)
-
-    # with edge features passed
-    dataset = EuclideanDataset("geom", with_edge_feat=True)
     ```
-
     """
 
     def __init__(
@@ -46,7 +37,7 @@ class EuclideanDataset(Dataset):
         return len(self.dataset)
 
     def get(self, idx):
-        data_bunch: Bunch = self.dataset[idx]
+        data_bunch = self.dataset[idx]
 
         # get positions, atomic_numbers and smiles
         atomic_numbers = data_bunch["atomic_numbers"]
