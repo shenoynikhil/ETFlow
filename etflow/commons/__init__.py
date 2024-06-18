@@ -1,4 +1,3 @@
-from .chirality import get_chiral_tensors, signed_volume
 from .covmat import build_conformer
 from .featurization import (
     MoleculeFeaturizer,
@@ -7,6 +6,8 @@ from .featurization import (
     compute_edge_index,
     extend_graph_order_radius,
     get_atomic_number_and_charge,
+    get_chiral_tensors,
+    signed_volume,
 )
 from .io import (
     get_local_cache,
