@@ -7,13 +7,11 @@ from torch_scatter import scatter
 
 from .modules import (
     CoorsNorm,
-    CosineCutoff,
     EquivariantVectorAndScalarOutput,
     EquivariantVectorOutput,
-    NeighborEmbedding,
     Scalar,
 )
-from .utils import act_class_mapping, rbf_class_mapping
+from .utils import CosineCutoff, NeighborEmbedding, act_class_mapping, rbf_class_mapping
 
 
 def center(pos, batch):
