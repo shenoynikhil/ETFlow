@@ -1,10 +1,11 @@
 from .chirality import get_chiral_tensors, signed_volume
 from .covmat import build_conformer
-from .edge import compute_edge_index, extend_graph_order_radius
 from .featurization import (
     MoleculeFeaturizer,
     atom_to_feature_vector,
     bond_to_feature_vector,
+    compute_edge_index,
+    extend_graph_order_radius,
     get_atomic_number_and_charge,
 )
 from .io import (
