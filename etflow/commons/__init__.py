@@ -1,5 +1,12 @@
 from .chirality import get_chiral_tensors, signed_volume
+from .covmat import build_conformer
 from .edge import compute_edge_index, extend_graph_order_radius
+from .featurization import (
+    MoleculeFeaturizer,
+    atom_to_feature_vector,
+    bond_to_feature_vector,
+    get_atomic_number_and_charge,
+)
 from .io import (
     get_local_cache,
     load_hdf5,
@@ -9,13 +16,6 @@ from .io import (
     load_pkl,
     save_memmap,
     save_pkl,
-)
-from .covmat import build_conformer
-from .featurization import (
-    atom_to_feature_vector,
-    bond_to_feature_vector,
-    get_atomic_number_and_charge,
-    MoleculeFeaturizer
 )
 from .sample import batched_sampling
 from .utils import Queue

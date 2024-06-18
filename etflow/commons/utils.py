@@ -1,5 +1,6 @@
 import numpy as np
 
+
 # Gradient clipping
 class Queue:
     def __init__(self, max_len=50):

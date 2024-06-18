@@ -1,8 +1,8 @@
 from sklearn.utils import Bunch
-from torch_geometric.data import Data
+from torch_geometric.data import Data, Dataset
 
 from etflow.commons import MoleculeFeaturizer
-from torch_geometric.data import Dataset
+
 from .geom import GEOM
 
 DATASET_MAPPING = {"geom": GEOM}
@@ -37,7 +37,9 @@ class EuclideanDataset(Dataset):
         # instantiate dataset
         self.dataset_name = dataset_name
         self.dataset = DATASET_MAPPING[dataset_name]()
-        self.mol_feat = MoleculeFeaturizer(use_ogb_feat=use_ogb_feat, use_edge_feat=use_edge_feat)
+        self.mol_feat = MoleculeFeaturizer(
+            use_ogb_feat=use_ogb_feat, use_edge_feat=use_edge_feat
+        )
         self.cache = {}
 
     def len(self):
@@ -53,7 +55,9 @@ class EuclideanDataset(Dataset):
 
         # featurize molecule
         node_attr = self.mol_feat.get_atom_features(smiles)
-        chiral_index, chiral_nbr_index, chiral_tag = self.mol_feat.get_chiral_centers(smiles)
+        chiral_index, chiral_nbr_index, chiral_tag = self.mol_feat.get_chiral_centers(
+            smiles
+        )
         edge_index, edge_attr = self.mol_feat.get_edge_index(smiles)
         mol = self.mol_feat.get_mol_with_conformer(smiles, pos)
 

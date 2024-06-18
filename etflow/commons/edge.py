@@ -1,13 +1,14 @@
 import numpy as np
 import torch
+from rdkit.Chem.rdchem import BondType as BT
 from torch_cluster import radius_graph
 from torch_geometric.utils import dense_to_sparse, to_dense_adj
 from torch_sparse import coalesce
 
 from .featurization import bond_to_feature_vector
-from rdkit.Chem.rdchem import BondType as BT
 
 BOND_TYPES = {t: i for i, t in enumerate(BT.names.values())}
+
 
 def compute_edge_index(
     mol, no_reverse: bool = False, with_edge_attr=False

@@ -1,9 +1,9 @@
 import argparse
 import os
 
+import wandb
 from loguru import logger as log
 
-import wandb
 from etflow.commons import load_pkl, save_pkl
 from etflow.commons.covmat import CovMatEvaluator, print_covmat_results
 

@@ -1,4 +1,4 @@
-'''Loss Functions'''
+"""Loss Functions"""
 from typing import Optional
 
 import torch
@@ -38,7 +38,7 @@ def batchwise_mse_loss(
     target: torch.Tensor,
     batch: Optional[torch.Tensor] = None,
     reduce: bool = "mean",
-)-> torch.Tensor:
+) -> torch.Tensor:
     """Mean Squared Error Loss
     This computes the average MSE loss per molecule and then
     averages over number of molecules in the batch.

@@ -22,7 +22,7 @@ Preprocess the data by running the following command. Pass in the path to the da
 python scripts/preprocess.py -p < path_to_saved_file > -d <folder_path_to_save_outputs>
 ```
 
-## Training 
+## Training
 We provide our configs for training on the GEOM-DRUGS and the GEOM-QM9 datasets. Run the following commands once datasets are preprocessed and the environment is set up:
 
 ```bash
