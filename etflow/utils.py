@@ -18,9 +18,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LRScheduler, ReduceLROnP
 
 from etflow.data import BaseDataModule
 from etflow.data.dataset import EuclideanDataset
-from etflow.models import (
-    BaseFlow,
-)
+from etflow.models import BaseFlow
 from etflow.schedulers import CosineAnnealingWarmupRestarts
 
 

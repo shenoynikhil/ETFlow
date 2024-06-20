@@ -19,12 +19,12 @@ import os.path as osp
 import numpy as np
 import pandas as pd
 import torch
+import wandb
 from lightning import seed_everything
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
-import wandb
 from etflow.commons import (
     atom_to_feature_vector,
     compute_edge_index,

@@ -1,7 +1,7 @@
+from copy import deepcopy
 from functools import partial
 from multiprocessing import Pool
 from typing import Callable, List
-from copy import deepcopy
 
 import datamol as dm
 import numpy as np
@@ -9,11 +9,11 @@ import pandas as pd
 import torch
 from datamol.types import Mol
 from loguru import logger as log
-from rdkit.Chem.rdchem import Conformer
-from rdkit.Geometry import Point3D
-from rdkit.Chem.rdmolops import RemoveHs
-from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMolecule
 from rdkit.Chem import rdMolAlign as MA
+from rdkit.Chem.rdchem import Conformer
+from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMolecule
+from rdkit.Chem.rdmolops import RemoveHs
+from rdkit.Geometry import Point3D
 from tqdm import tqdm
 
 
@@ -78,9 +78,7 @@ def calc_performance_stats(rmsd_array, threshold):
 
 def worker_fn(job, useFF=False, use_alignmol=False):
     smi, i_true, ref_mol, gen_mols = job
-    rmsd_vals = get_rmsd(
-        ref_mol, gen_mols, useFF=useFF, use_alignmol=use_alignmol
-    )
+    rmsd_vals = get_rmsd(ref_mol, gen_mols, useFF=useFF, use_alignmol=use_alignmol)
     return smi, i_true, rmsd_vals
 
 

@@ -514,10 +514,6 @@ class BaseFlow(BaseModel):
             # re-add the pos to get pred_pos
             v_t = center_of_mass(v_t + x_t, batch=batch)
 
-        # ipdb if any v_t is > 1000
-        if torch.any(v_t > 100.):
-            import ipdb; ipdb.set_trace()
-
         # regress against vector field
         loss = batchwise_l2_loss(v_t, u_t, batch=batch, reduce="mean")
 
