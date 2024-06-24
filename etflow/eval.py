@@ -11,17 +11,18 @@ import argparse
 import datetime
 import os
 import os.path as osp
+import time
 
 import numpy as np
 import pandas as pd
 import torch
-import wandb
 
 # from lightning import seed_everything
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
+import wandb
 from etflow.commons import load_pkl, save_pkl
 from etflow.models import BaseFlow
 from etflow.utils import instantiate_dataset, instantiate_model, read_yaml
@@ -47,12 +48,8 @@ def main(
     nsteps: int,
     batch_size: int,
     eps: float,
-    debug: bool,
     subset_type: str,
 ):
-    # seed = config.get("seed", 42)
-    # seed_everything(seed)
-
     if cuda_available():
         log.info("CUDA is available. Using GPU for sampling.")
         device = torch.device("cuda")
@@ -94,6 +91,7 @@ def main(
 
         # we would want (num_samples, num_nodes, 3)
         generated_positions = []
+        times = []
 
         for batch_start in range(0, num_samples, max_batch_size):
             # get batch_size
@@ -103,17 +101,26 @@ def main(
             batched_data = Batch.from_data_list([data] * batch_size)
 
             # get one_hot, edge_index, batch
-            z, edge_index, batch, node_attr = (
+            (
+                z,
+                edge_index,
+                batch,
+                node_attr,
+                chiral_index,
+                chiral_nbr_index,
+                chiral_tag,
+            ) = (
                 batched_data["atomic_numbers"].to(device),
                 batched_data["edge_index"].to(device),
                 batched_data["batch"].to(device),
                 batched_data["node_attr"].to(device),
+                batched_data["chiral_index"].to(device),
+                batched_data["chiral_nbr_index"].to(device),
+                batched_data["chiral_tag"].to(device),
             )
 
-            chiral_index = batched_data["chiral_index"].to(device)
-            chiral_nbr_index = batched_data["chiral_nbr_index"].to(device)
-            chiral_tag = batched_data["chiral_tag"].to(device)
-
+            # get time-estimate
+            start = time.time()
             with torch.no_grad():
                 if model_type == "BaseSFM":
                     # generate samples
@@ -139,6 +146,8 @@ def main(
                         chiral_tag=chiral_tag,
                         eps=eps,
                     )
+            end = time.time()
+            times.append((end - start) / batch_size)  # store time per conformer
 
             # reshape to (num_samples, num_atoms, 3) using batch
             pos = pos.view(batch_size, -1, 3).cpu().detach().numpy()
@@ -146,26 +155,13 @@ def main(
             # append to generated_positions
             generated_positions.append(pos)
 
-            # if debug mode, break after first batch
-            if debug:
-                break
-
-        # if debug mode, break after first molecule
-        if debug:
-            break
-
-        # concatenate generated_positions
-        generated_positions = np.concatenate(
-            generated_positions, axis=0
-        )  # (num_samples, num_atoms, 3)
+        # concatenate generated_positions: (num_samples, num_atoms, 3)
+        generated_positions = np.concatenate(generated_positions, axis=0)
 
         # save to file
-        if not debug:
-            path = osp.join(output_dir, f"{idx}.pkl")
-            log.info(
-                f"Saving generated positions to file for smiles {smiles} at {path}"
-            )
-            save_pkl(path, generated_positions)
+        path = osp.join(output_dir, f"{idx}.pkl")
+        log.info(f"Saving generated positions to file for smiles {smiles} at {path}")
+        save_pkl(path, generated_positions)
 
     # compile all generate pkl into a single file
     log.info("Compile all generated pickle files into a single file")
@@ -177,6 +173,10 @@ def main(
     df_sub["pos_ref"] = df_sub.apply(
         lambda row: dataset[row["index"]].pos.unsqueeze(0).numpy(), axis=1
     )
+
+    # log time per conformer
+    wandb.log({"time_per_conformer": np.mean(times)})
+    save_pkl(os.path.join(output_dir, "times.pkl"), times)
 
     # create pos_gen
     data_list = {}
@@ -276,6 +276,5 @@ if __name__ == "__main__":
         nsteps=args.nsteps,
         batch_size=args.batch_size,
         eps=args.eps,
-        debug=debug,
         subset_type=args.dataset_type,
     )

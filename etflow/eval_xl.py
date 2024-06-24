@@ -19,44 +19,29 @@ import os.path as osp
 import numpy as np
 import pandas as pd
 import torch
-import wandb
 from lightning import seed_everything
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
-from etflow.commons import (
-    atom_to_feature_vector,
-    compute_edge_index,
-    get_atomic_number_and_charge,
-    get_chiral_tensors,
-    get_lpe,
-    load_pkl,
-    save_pkl,
-)
+import wandb
+from etflow.commons import MoleculeFeaturizer, load_pkl, save_pkl
 from etflow.utils import instantiate_model, read_yaml
 
 torch.set_float32_matmul_precision("high")
 
+mol_feat = MoleculeFeaturizer()
 
-def get_data(mol, use_lpe=False, lpe_k=4):
+
+def get_data(mol, use_ogb_feat: bool, use_edge_feat: bool):
     """Convert mol object to Data object"""
-    x = get_atomic_number_and_charge(mol)
-    atomic_numbers = torch.from_numpy(x[:, 0]).int()
-    edge_index, _ = compute_edge_index(mol)
-    edge_index = edge_index.long()
-    node_attr = torch.tensor(
-        [atom_to_feature_vector(atom) for atom in mol.GetAtoms()],
-        dtype=torch.float32,
+    atomic_numbers = mol_feat.get_atomic_numbers_from_mol(mol)
+    edge_index, _ = mol_feat.get_edge_index_from_mol(mol, use_edge_feat)
+    node_attr = mol_feat.get_atom_features_from_mol(mol, use_ogb_feat)
+    chiral_index, chiral_nbr_index, chiral_tag = mol_feat.get_chiral_centers_from_mol(
+        mol
     )
-    chiral_index, chiral_nbr_index, chiral_tag = get_chiral_tensors(mol)
-    if use_lpe:
-        lpe = get_lpe(
-            Data(edge_index=edge_index),
-            num_nodes=x.shape[0],
-            k=lpe_k,
-        )
-        node_attr = torch.cat([node_attr, lpe], dim=-1)
+
     return Data(
         atomic_numbers=atomic_numbers,
         edge_index=edge_index,
@@ -118,15 +103,13 @@ def main(
     model.load_state_dict(state_dict)
 
     # check if we need to use lpe
-    lpe_k = None
-    use_lpe = False
-    if (
-        "use_lpe" in config["datamodule_args"]["dataset_args"]
-        and config["datamodule_args"]["dataset_args"]["use_lpe"]
-    ):
-        use_lpe = True
-        lpe_k = config["datamodule_args"]["dataset_args"].get("lpe_k", 4)
-        log.info(f"Using LPE with k={lpe_k}")
+    use_ogb_feat = config["datamodule_args"]["dataset_args"].get("use_ogb_feat", True)
+    use_edge_feat = config["datamodule_args"]["dataset_args"].get(
+        "use_edge_feat", False
+    )
+    log.info(
+        f"Using OGB features: {use_ogb_feat}, Using edge features: {use_edge_feat}"
+    )
 
     # move to device
     model = model.to(device)
@@ -146,7 +129,7 @@ def main(
 
         # get molecular graph
         mol_obj = mols[smiles][0]
-        data = get_data(mol_obj, use_lpe=use_lpe, lpe_k=lpe_k)
+        data = get_data(mol_obj, use_ogb_feat, use_edge_feat)
 
         # we would want (num_samples, num_nodes, 3)
         generated_positions = []
