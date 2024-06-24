@@ -63,7 +63,7 @@ model_args:
     lr_scheduler_type: CosineAnnealingWarmupRestarts
     first_cycle_steps: 500_000
     cycle_mult: 1.0
-    max_lr: 8.e-4
+    max_lr: 5.e-4
     min_lr: 1.e-8
     warmup_steps: 0
     gamma: 0.05
@@ -98,8 +98,8 @@ logger_args:
 # trainer
 trainer: Trainer
 trainer_args:
-    max_epochs: 100
+    max_epochs: 200
     devices: 8
     limit_train_batches: 5000
-    strategy: ddp_find_unused_parameters_true
+    strategy: ddp
     accelerator: auto

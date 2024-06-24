@@ -28,9 +28,9 @@ class EuclideanDataset(Dataset):
         # instantiate dataset
         self.dataset_name = dataset_name
         self.dataset = DATASET_MAPPING[dataset_name]()
-        self.mol_feat = MoleculeFeaturizer(
-            use_ogb_feat=use_ogb_feat, use_edge_feat=use_edge_feat
-        )
+        self.mol_feat = MoleculeFeaturizer()
+        self.use_ogb_feat = use_ogb_feat
+        self.use_edge_feat = use_edge_feat
         self.cache = {}
 
     def len(self):
@@ -45,11 +45,11 @@ class EuclideanDataset(Dataset):
         smiles = data_bunch["smiles"]
 
         # featurize molecule
-        node_attr = self.mol_feat.get_atom_features(smiles)
+        node_attr = self.mol_feat.get_atom_features(smiles, self.use_ogb_feat)
         chiral_index, chiral_nbr_index, chiral_tag = self.mol_feat.get_chiral_centers(
             smiles
         )
-        edge_index, edge_attr = self.mol_feat.get_edge_index(smiles)
+        edge_index, edge_attr = self.mol_feat.get_edge_index(smiles, self.use_edge_feat)
         mol = self.mol_feat.get_mol_with_conformer(smiles, pos)
 
         graph = Data(

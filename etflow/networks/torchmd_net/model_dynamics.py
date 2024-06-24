@@ -83,16 +83,15 @@ class EquivariantMultiHeadAttention(MessagePassing):
         else:
             self.q_proj = nn.Linear(hidden_channels, hidden_channels)
             self.k_proj = nn.Linear(hidden_channels, hidden_channels)
-        self.v_proj = nn.Linear(hidden_channels, hidden_channels * 3)
-        self.o_proj = nn.Linear(
+        self.v_proj = nn.Linear(
             hidden_channels, hidden_channels * (3 + int(so3_equivariant))
         )
-
+        self.o_proj = nn.Linear(hidden_channels, hidden_channels * 3)
         self.vec_proj = nn.Linear(hidden_channels, hidden_channels * 3, bias=False)
 
         # projection linear layers for edge attributes
         self.dk_proj = nn.Linear(num_rbf, hidden_channels)
-        self.dv_proj = nn.Linear(num_rbf, hidden_channels * 3)
+        self.dv_proj = nn.Linear(num_rbf, hidden_channels * (3 + int(so3_equivariant)))
 
         self.reset_parameters()
 
@@ -131,7 +130,9 @@ class EquivariantMultiHeadAttention(MessagePassing):
         q = self.q_proj(x).reshape(-1, self.num_heads, self.head_dim)
         k = self.k_proj(x).reshape(-1, self.num_heads, self.head_dim)
         # value features: (num_atoms, num_heads, 3 * head_dim)
-        v = self.v_proj(x).reshape(-1, self.num_heads, self.head_dim * 3)
+        v = self.v_proj(x).reshape(
+            -1, self.num_heads, self.head_dim * (3 + int(self.so3_equivariant))
+        )
 
         # vec features: (num_atoms, 3, hidden_channels) (all invariant)
         vec1, vec2, vec3 = torch.split(self.vec_proj(vec), self.hidden_channels, dim=-1)
@@ -142,7 +143,9 @@ class EquivariantMultiHeadAttention(MessagePassing):
         # into dk and dv vectors with shape (num_edges, num_heads, head_dim)
         # and (num_edges, num_heads, 3 * head_dim) respectively
         dk = self.act(self.dk_proj(f_ij)).reshape(-1, self.num_heads, self.head_dim)
-        dv = self.act(self.dv_proj(f_ij)).reshape(-1, self.num_heads, self.head_dim * 3)
+        dv = self.act(self.dv_proj(f_ij)).reshape(
+            -1, self.num_heads, self.head_dim * (3 + int(self.so3_equivariant))
+        )
 
         # Message Passing Propagate
         x, vec = self.propagate(
@@ -164,15 +167,9 @@ class EquivariantMultiHeadAttention(MessagePassing):
         # normalize the vec if norm_coors is True
         vec = self.coors_norm(vec)
 
-        if self.so3_equivariant:
-            o1, o2, o3, o4 = torch.split(self.o_proj(x), self.hidden_channels, dim=1)
-            vec3 = vec3 + vec3.cross(vec1) * o4.unsqueeze(1)
-        else:
-            o1, o2, o3 = torch.split(self.o_proj(x), self.hidden_channels, dim=1)
-
-        dx = vec_dot * o2 + o3
+        o1, o2, o3 = torch.split(self.o_proj(x), self.hidden_channels, dim=1)
         dvec = vec3 * o1.unsqueeze(1) + vec
-
+        dx = vec_dot * o2 + o3
         return dx, dvec
 
     def message(
@@ -194,14 +191,17 @@ class EquivariantMultiHeadAttention(MessagePassing):
 
         # value pathway
         v_j = v_j * dv  # multiply with edge attr features
-        x, vec1, vec2 = torch.split(v_j, self.head_dim, dim=2)
+        x, vec1, vec2, vec3 = torch.split(v_j, self.head_dim, dim=2)
 
         # update scalar features
         x = x * attn.unsqueeze(2)  # (num_edges, num_heads, head_dim)
         # update vector features (num_edges, 3, num_heads, head_dim)
-        vec = vec_j * vec1.unsqueeze(1) + vec2.unsqueeze(1) * d_ij.unsqueeze(
-            2
-        ).unsqueeze(3)
+        vec = (
+            vec_j * vec1.unsqueeze(1)
+            + vec2.unsqueeze(1) * d_ij.unsqueeze(2).unsqueeze(3)
+            + vec3.unsqueeze(1)
+            * torch.cross(d_ij.unsqueeze(2).unsqueeze(3), vec_j, dim=1)
+        )
         return x, vec
 
     def aggregate(

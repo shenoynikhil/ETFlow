@@ -38,7 +38,7 @@ model_args:
     cutoff_lower: 0.0
     cutoff_upper: 10.0
     max_z: 100
-    node_attr_dim: 8
+    node_attr_dim: 10
     edge_attr_dim: 1
     attn_activation: silu
     num_heads: 8
@@ -47,12 +47,12 @@ model_args:
     qk_norm: true
     clip_during_norm: true
     so3_equivariant: true
-    output_layer_norm: false
+    output_layer_norm: true
 
     # flow matching specific
     normalize_node_invariants: false
     sigma: 0.1
-    prior_type: harmonic
+    prior_type: gaussian
     interpolation_type: linear
 
     # optimizer args
@@ -99,8 +99,8 @@ logger_args:
 # trainer
 trainer: Trainer
 trainer_args:
-    max_epochs: 250
+    max_epochs: 500
     devices: 4
     limit_train_batches: 1500
-    strategy: ddp_find_unused_parameters_true
+    strategy: ddp
     accelerator: auto

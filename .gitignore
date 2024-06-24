@@ -9,6 +9,7 @@ wandb/
 logs/
 output/
 results/
+notebooks/
 
 # cache
 .pytest_cache/
