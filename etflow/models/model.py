@@ -14,7 +14,11 @@ from etflow.models.utils import (
     rmsd_align,
     unsqueeze_like,
 )
-from etflow.networks.torchmd_net import TensorNetDynamics, TorchMDDynamics
+from etflow.networks.torchmd_net import (
+    TensorNetDynamics,
+    TorchMDDynamics,
+    TorchMDDynamicsWithScore,
+)
 
 
 class BaseFlow(BaseModel):
@@ -45,7 +49,7 @@ class BaseFlow(BaseModel):
         distance_influence: str = "both",
         reduce_op: str = "sum",
         qk_norm: bool = False,
-        output_layer_norm: bool = False,
+        output_layer_norm: bool = True,
         clip_during_norm: bool = False,
         max_num_neighbors: int = 32,
         so3_equivariant: bool = False,
@@ -111,6 +115,29 @@ class BaseFlow(BaseModel):
         # setup network
         if network_type == "TorchMDDynamics":
             self.network = TorchMDDynamics(
+                hidden_channels=hidden_channels,
+                num_layers=num_layers,
+                num_rbf=num_rbf,
+                rbf_type=rbf_type,
+                trainable_rbf=trainable_rbf,
+                activation=activation,
+                neighbor_embedding=neighbor_embedding,
+                cutoff_lower=cutoff_lower,
+                cutoff_upper=cutoff_upper,
+                max_z=max_z,
+                node_attr_dim=node_attr_dim,
+                edge_attr_dim=edge_attr_dim,
+                attn_activation=attn_activation,
+                num_heads=num_heads,
+                distance_influence=distance_influence,
+                reduce_op=reduce_op,
+                qk_norm=qk_norm,
+                output_layer_norm=output_layer_norm,
+                clip_during_norm=clip_during_norm,
+                so3_equivariant=so3_equivariant,
+            )
+        elif network_type == "TorchMDDynamicsWithScore":
+            self.network = TorchMDDynamicsWithScore(
                 hidden_channels=hidden_channels,
                 num_layers=num_layers,
                 num_rbf=num_rbf,
