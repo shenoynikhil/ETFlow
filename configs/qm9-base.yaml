@@ -50,7 +50,6 @@ model_args:
     output_layer_norm: true
 
     # flow matching specific
-    normalize_node_invariants: false
     sigma: 0.1
     prior_type: gaussian
     interpolation_type: linear
@@ -99,7 +98,7 @@ logger_args:
 # trainer
 trainer: Trainer
 trainer_args:
-    max_epochs: 500
+    max_epochs: 250
     devices: 4
     limit_train_batches: 1500
     strategy: ddp
