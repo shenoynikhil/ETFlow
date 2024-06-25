@@ -18,7 +18,7 @@ from torch.optim.lr_scheduler import CosineAnnealingLR, LRScheduler, ReduceLROnP
 
 from etflow.data import BaseDataModule
 from etflow.data.dataset import EuclideanDataset
-from etflow.models import BaseFlow
+from etflow.models import BaseFlow, BaseSFM
 from etflow.schedulers import CosineAnnealingWarmupRestarts
 
 
@@ -136,7 +136,9 @@ def instantiate_model(
     if model_type == "BaseFlow":
         log.info(f"Loading BaseFlow with args: {model_args}")
         return BaseFlow(**model_args)
-
+    elif model_type == "BaseSFM":
+        log.info(f"Loading BaseSFM with args: {model_args}")
+        return BaseSFM(**model_args)
     raise NotImplementedError
 
 

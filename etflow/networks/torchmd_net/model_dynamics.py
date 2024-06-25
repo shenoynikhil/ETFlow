@@ -5,12 +5,7 @@ from torch import Tensor, nn
 from torch_geometric.nn import MessagePassing
 from torch_scatter import scatter
 
-from .modules import (
-    CoorsNorm,
-    EquivariantVectorAndScalarOutput,
-    EquivariantVectorOutput,
-    Scalar,
-)
+from .modules import CoorsNorm, EquivariantVectorOutput, Scalar
 from .utils import CosineCutoff, NeighborEmbedding, act_class_mapping, rbf_class_mapping
 
 
@@ -831,8 +826,9 @@ class TorchMDDynamicsWithScore(nn.Module):
         distance_influence: str = "both",
         reduce_op: str = "sum",
         qk_norm: bool = False,
-        norm_coors: bool = False,
-        norm_coors_scale_init: float = 1e-2,
+        output_layer_norm: bool = True,
+        clip_during_norm: bool = False,
+        so3_equivariant: bool = False,
     ):
         super().__init__()
         self.representation_model = TorchMD_ET_dynamics(
@@ -852,17 +848,24 @@ class TorchMDDynamicsWithScore(nn.Module):
             node_attr_dim=node_attr_dim,
             edge_attr_dim=edge_attr_dim,
             qk_norm=qk_norm,
-            norm_coors=norm_coors,
-            norm_coors_scale_init=norm_coors_scale_init,
+            clip_during_norm=clip_during_norm,
+            so3_equivariant=so3_equivariant,
         )
 
-        self.flow_output_model = EquivariantVectorAndScalarOutput(
-            hidden_channels=hidden_channels, activation=activation, reduce_op=reduce_op
+        self.flow_output_model = EquivariantVectorOutput(
+            hidden_channels=hidden_channels,
+            activation=activation,
+            reduce_op=reduce_op,
+            layer_norm=output_layer_norm,
         )
 
-        self.score_output_model = EquivariantVectorAndScalarOutput(
-            hidden_channels=hidden_channels, activation=activation, reduce_op=reduce_op
+        self.score_output_model = EquivariantVectorOutput(
+            hidden_channels=hidden_channels,
+            activation=activation,
+            reduce_op=reduce_op,
+            layer_norm=output_layer_norm,
         )
+
         self.reset_parameters()
 
     def reset_parameters(self):

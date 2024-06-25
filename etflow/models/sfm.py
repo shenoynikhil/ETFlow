@@ -1,17 +1,17 @@
 from typing import Optional
 
 import torch
+from ecgen.networks.torchmd_net import TorchMDDynamics
 from torch import Tensor
 
-from ecgen.models.base_flow import BaseFlow
-from ecgen.models.loss import batchwise_l2_loss
-from ecgen.models.utils import (
+from etflow.models.loss import batchwise_l2_loss
+from etflow.models.model import BaseFlow
+from etflow.models.utils import (
     center_of_mass,
     extend_bond_index,
     rmsd_align,
     unsqueeze_like,
 )
-from ecgen.networks.torchmd_net import TorchMDDynamics
 
 
 class BaseSFM(BaseFlow):
