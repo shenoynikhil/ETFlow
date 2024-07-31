@@ -6,7 +6,7 @@ from typing import Callable, Optional, Tuple
 
 import torch
 from torch import Tensor, nn
-from torch_scatter import scatter
+from torch_geometric.utils import scatter
 
 from .modules import EquivariantVectorOutput
 from .utils import CosineCutoff, Distance, act_class_mapping, rbf_class_mapping

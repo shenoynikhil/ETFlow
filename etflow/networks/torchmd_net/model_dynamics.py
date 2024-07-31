@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor, nn
 from torch_geometric.nn import MessagePassing
-from torch_scatter import scatter
+from torch_geometric.utils import scatter
 
 from .modules import (
     CoorsNorm,

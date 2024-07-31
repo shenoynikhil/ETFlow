@@ -2,8 +2,6 @@ import json
 import os
 import pickle
 
-import fsspec
-import h5py
 import numpy as np
 
 CACHE_DIR = os.environ.get("CACHE_DIR", "~/.cache/data")
@@ -36,15 +34,6 @@ def load_npz(path):
     uniques = data_dict["uniques"]
     inv_indices = data_dict["inv_indices"]
     return uniques, inv_indices
-
-
-def load_hdf5(path):
-    fp = fsspec.open(path, "rb")
-    if hasattr(fp, "open"):
-        fp = fp.open()
-    file = h5py.File(fp)
-
-    return file
 
 
 def save_memmap(data, path, shape, dtype):
