@@ -30,22 +30,14 @@ class GEOM(Dataset):
 
     processed_file_names: Dict[str, str] = {
         "atomic_inputs": "atomic_inputs.memmap",
-        "edge_index": "edge_index.memmap",
-        "edge_index_range": "edge_index_range.memmap",
         "energy": "energy.memmap",
         "pos_index_range": "pos_index_range.memmap",
         "smiles": "smiles.npz",
         "subset": "subset.npz",
-        "zmatrix": "zmatrix.memmap",
-        "zmatrix_index_range": "zmatrix_index_range.memmap",
     }
 
     def __init__(self, data_dir: str = None):
         super().__init__()
-        if data_dir is None:
-            cache_dir = "/nfs/scratch/students/data/"
-            data_dir = osp.join(cache_dir, "geom", "preprocessed-v2")
-
         self._check_files_exists(data_dir)
 
         # load memmap files

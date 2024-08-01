@@ -178,7 +178,7 @@ def instantiate_trainer(
     debug: bool,
 ) -> Trainer:
     if debug:
-        trainer_args["fast_dev_run"] = 100
+        trainer_args["fast_dev_run"] = 1000
         trainer_args["devices"] = 1  # check on single GPU
         trainer_args["strategy"] = "auto"  # auto select strategy
 

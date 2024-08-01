@@ -54,7 +54,6 @@ class BaseFlow(BaseModel):
         # flow matching args
         sigma: float = 0.1,
         interpolation_type: str = "linear",
-        normalize_node_invariants=False,
         prior_type: str = "gaussian",
         sample_time_dist: str = "uniform",
         harmonic_alpha: float = 1.0,
@@ -159,7 +158,6 @@ class BaseFlow(BaseModel):
         self.sigma = sigma
         self.cutoff = cutoff_upper
         self.parity_switch = parity_switch
-        self.normalize_node_invariants = normalize_node_invariants
         self.prior_type = prior_type
         self.interpolation_type = interpolation_type
         self.sample_time_dist = sample_time_dist
@@ -426,12 +424,6 @@ class BaseFlow(BaseModel):
     ):
         # center the positions at 0
         pos = center_of_mass(pos, batch=batch)
-
-        # normalize node attributes
-        # This has been empirically useful in EDM.
-        # scale one-hot and charges so that model focuses on positions
-        if self.normalize_node_invariants and node_attr is not None:
-            node_attr = node_attr * 0.1
 
         # compute extended bond index
         edge_index, edge_type = extend_bond_index(
