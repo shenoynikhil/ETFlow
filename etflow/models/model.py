@@ -261,34 +261,6 @@ class BaseFlow(BaseModel):
     def sigma_dot_t(self, t):
         return self.sigma * 0.5 * (1 - 2 * t) / torch.sqrt(t * (1 - t))
 
-    def lambda_t(self, t):
-        return self.sigma_dot_t(t) - (
-            (self.sigma_t(t) * self.alpha_dot_t(t)) / self.alpha_t(t)
-        )
-
-    def gamma_t(self, t):
-        return self.beta_dot_t(t) - (
-            (self.beta_t(t) * self.alpha_dot_t(t)) / self.alpha_t(t)
-        )
-
-    def compute_s_from_v(self, t, v, x0, x):
-        numerator = (
-            (self.alpha_dot_t(t) / self.alpha_t(t)) * x + self.gamma_t(t) * x0 - v
-        )
-
-        denominator = self.lambda_t(t) * self.sigma_t(t)
-        return numerator / denominator
-
-    def compute_v_from_s(self, t, s, x0, x):
-        return (
-            (self.alpha_dot_t(t) / self.alpha_t(t)) * x
-            + self.gamma_t(t) * x0
-            - self.lambda_t(t) * self.sigma_t(t) * s
-        )
-
-    def compute_s_from_x1(self, t, x1, x0, x):
-        return (1 / (self.sigma_t(t) ** 2)) * (self.interpolate(x0, x1, t) - x)
-
     def sample_conditional_pt(
         self, x0: Tensor, x1: Tensor, t: Tensor, batch: Tensor, return_eps: bool = False
     ):
@@ -694,29 +666,13 @@ class BaseFlow(BaseModel):
                 batch=batch,
             )
 
-            dW = torch.randn_like(x)
-            dW = center_of_mass(dW, batch=batch)
-            dW = torch.sqrt(2 * dt * eps) * dW
+            # TODO: Insert Yoon's stochastic sampling here
+            ############################
 
-            if self.path_type == "pred_x1":
-                s = t + dt
 
-                v_t = center_of_mass(v_t + x, batch=batch)
-                x1_hat = rmsd_align(v_t, x, batch=batch)
 
-                s_t = self.compute_s_from_x1(t=t, x1=x1_hat, x0=x0, x=x)
-                s_t = center_of_mass(s_t, batch=batch)
-                s_t = 0.5 * self.sigma**2 * s_t
 
-                x = dt / (1 - t) * x1_hat + (1 - s) / (1 - t) * x
-                x = x + eps * s_t * dt + self.sigma_t(t) * dW
-
-            else:
-                s_t = self.compute_s_from_v(t=t, v=v_t, x0=x0, x=x)
-                s_t = center_of_mass(s_t, batch=batch)
-                s_t = 0.5 * self.sigma**2 * s_t
-                x = x + dt * (v_t + eps * s_t)
-                x = x + self.sigma_t(t) * dW
+            ############################
 
         if self.parity_switch == "post_hoc":
             # perform parity switch
