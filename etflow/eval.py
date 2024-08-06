@@ -16,20 +16,20 @@ import time
 import numpy as np
 import pandas as pd
 import torch
-import wandb
 
 # from lightning import seed_everything
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
+import wandb
 from etflow.commons import load_pkl, save_pkl
 from etflow.models import BaseFlow
 from etflow.utils import instantiate_dataset, instantiate_model, read_yaml
 
 torch.set_float32_matmul_precision("high")
 
-DATA_FRAME_PATH = "/nfs/scratch/students/data/geom/preprocessed/geom_df_wo_filter.csv"
+DATA_FRAME_PATH = "/rxrx/scratch/nikhil.shenoy/geom.csv"
 
 
 def get_datatime():
@@ -62,7 +62,6 @@ def main(
         config["datamodule_args"]["dataset"], config["datamodule_args"]["dataset_args"]
     )
 
-    model_type = config["model"]
     model = instantiate_model(config["model"], config["model_args"])
 
     # load model weights
@@ -122,30 +121,18 @@ def main(
             # get time-estimate
             start = time.time()
             with torch.no_grad():
-                if model_type == "BaseSFM":
-                    # generate samples
-                    pos = model.sample(
-                        z,
-                        edge_index,
-                        batch,
-                        node_attr=node_attr,
-                        n_timesteps=nsteps,
-                        eps=eps,
-                        use_sde=True,
-                    )
-                else:
-                    # generate samples
-                    pos = model.sample(
-                        z,
-                        edge_index,
-                        batch,
-                        node_attr=node_attr,
-                        n_timesteps=nsteps,
-                        chiral_index=chiral_index,
-                        chiral_nbr_index=chiral_nbr_index,
-                        chiral_tag=chiral_tag,
-                        eps=eps,
-                    )
+                # generate samples
+                pos = model.sample(
+                    z,
+                    edge_index,
+                    batch,
+                    node_attr=node_attr,
+                    n_timesteps=nsteps,
+                    chiral_index=chiral_index,
+                    chiral_nbr_index=chiral_nbr_index,
+                    chiral_tag=chiral_tag,
+                    eps=eps,
+                )
             end = time.time()
             times.append((end - start) / batch_size)  # store time per conformer
 
@@ -169,7 +156,9 @@ def main(
     l = set([int(x.split(".pkl")[0]) for x in os.listdir(output_dir)])
     test_smiles = set([dataset[idx].smiles for idx in l])
     log.info(f"Number of generated files: {len(l)}")
-    df_sub = df[(df.subset == subset_type) & (df.name.isin(test_smiles))].reset_index()
+    df_sub = df[
+        (df.partition == subset_type) & (df.smiles.isin(test_smiles))
+    ].reset_index()
     df_sub["pos_ref"] = df_sub.apply(
         lambda row: dataset[row["index"]].pos.unsqueeze(0).numpy(), axis=1
     )
@@ -185,7 +174,7 @@ def main(
         smiles = item.smiles
 
         pos_ref = np.concatenate(
-            df_sub[df_sub["name"] == smiles]["pos_ref"].values.tolist()
+            df_sub[df_sub["smiles"] == smiles]["pos_ref"].values.tolist()
         )
         pos_gen = load_pkl(f"{output_dir}/{index}.pkl")
 
@@ -207,12 +196,12 @@ if __name__ == "__main__":
         "--dataset_type", "-t", type=str, required=False, default="drugs"
     )
     parser.add_argument("--batch_size", "-b", type=int, required=False, default=32)
-    parser.add_argument("--nsteps", "-n", type=int, required=False, default=100)
+    parser.add_argument("--nsteps", "-n", type=int, required=False, default=50)
     parser.add_argument(
         "--eps",
         "-e",
         type=float,
-        default=1.0,
+        default=0.0,
         required=False,
         help="Noise coefficient for SFM",
     )
@@ -237,7 +226,7 @@ if __name__ == "__main__":
         wandb.init(
             project="Energy-Aware-MCG",
             entity="doms-lab",
-            name=f"Sample Generation: {task_name}",
+            name=f"Sample Generation: {task_name}-steps{args.nsteps}",
         )
 
         # log experiment info

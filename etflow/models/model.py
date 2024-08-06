@@ -1,7 +1,6 @@
 from typing import Optional
 
 import torch
-from loguru import logger as log
 from torch import Tensor
 
 from etflow.commons import signed_volume
@@ -14,7 +13,7 @@ from etflow.models.utils import (
     rmsd_align,
     unsqueeze_like,
 )
-from etflow.networks.torchmd_net import TensorNetDynamics, TorchMDDynamics
+from etflow.networks.torchmd_net import TorchMDDynamics
 
 
 class BaseFlow(BaseModel):
@@ -49,8 +48,6 @@ class BaseFlow(BaseModel):
         clip_during_norm: bool = False,
         max_num_neighbors: int = 32,
         so3_equivariant: bool = False,
-        equivariance_invariance_group: str = "SO(3)",
-        dtype: str = torch.float32,
         # flow matching args
         sigma: float = 0.1,
         interpolation_type: str = "linear",
@@ -131,25 +128,6 @@ class BaseFlow(BaseModel):
                 clip_during_norm=clip_during_norm,
                 so3_equivariant=so3_equivariant,
             )
-        elif network_type == "TensorNetDynamics":
-            self.network = TensorNetDynamics(
-                hidden_channels=hidden_channels,
-                num_layers=num_layers,
-                num_rbf=num_rbf,
-                rbf_type=rbf_type,
-                trainable_rbf=trainable_rbf,
-                activation=activation,
-                cutoff_lower=cutoff_lower,
-                cutoff_upper=cutoff_upper,
-                max_num_neighbors=max_num_neighbors,
-                max_z=max_z,
-                node_attr_dim=node_attr_dim,
-                equivariance_invariance_group=equivariance_invariance_group,
-                clip_during_norm=clip_during_norm,
-                reduce_op=reduce_op,
-                dtype=dtype,
-                output_layer_norm=output_layer_norm,
-            )
         else:
             raise NotImplementedError(
                 f"Network type {network_type} not implemented for BaseFlow"
@@ -167,13 +145,9 @@ class BaseFlow(BaseModel):
         self.path_type = path_type
 
         if parity_switch is not None:
-            assert parity_switch in [
-                "prior",
-                "post_hoc",
-            ], f"Parity switch {parity_switch} not implemented"
-            log.info(
-                f"Will be performing the following parity switch: {self.parity_switch}"
-            )
+            assert (
+                parity_switch == "post_hoc"
+            ), f"Parity switch {parity_switch} not implemented"
 
         assert (
             self.prior_type in self.__prior_types__
@@ -382,12 +356,6 @@ class BaseFlow(BaseModel):
             x0 = self.harmonic_sampler.sample(
                 size=size, edge_index=edge_index, batch=batch, smiles=smiles
             ).to(self.device)
-
-        # if parity switch, switch prior correctly
-        if self.parity_switch == "prior":
-            x0 = self.switch_parity_of_pos(
-                x0, chiral_index, chiral_nbr_index, chiral_tag, batch
-            )
 
         return x0
 
