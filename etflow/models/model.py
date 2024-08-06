@@ -265,7 +265,7 @@ class BaseFlow(BaseModel):
         return self.sigma_dot_t(t) - (
             (self.sigma_t(t) * self.alpha_dot_t(t)) / self.alpha_t(t)
         )
-
+    
     def gamma_t(self, t):
         return self.beta_dot_t(t) - (
             (self.beta_t(t) * self.alpha_dot_t(t)) / self.alpha_t(t)
@@ -546,6 +546,7 @@ class BaseFlow(BaseModel):
         chiral_tag=None,
         n_timesteps: int = 20,
         eps: float = 0.0,
+        N_samples_from_base: int =20,
         start_time=0.0001,
         end_time=0.9999,
     ):
@@ -560,6 +561,7 @@ class BaseFlow(BaseModel):
                 start_time=start_time,
                 end_time=end_time,
                 eps=eps,
+                N_samples_from_base=N_samples_from_base,
                 chiral_index=chiral_index,
                 chiral_nbr_index=chiral_nbr_index,
                 chiral_tag=chiral_tag,
@@ -659,6 +661,7 @@ class BaseFlow(BaseModel):
         eps: float = 0.0,
         start_time=0.0001,
         end_time=0.9999,
+        N_samples_from_base=20,
         x0: Optional[Tensor] = None,
     ):
         t_schedule = torch.linspace(
@@ -666,16 +669,22 @@ class BaseFlow(BaseModel):
         )
         num_atoms = z.size(0)
 
-        x = self.sample_base_dist(
-            size=(num_atoms, 3),
-            edge_index=bond_index,
-            batch=batch,
-            chiral_index=chiral_index,
-            chiral_nbr_index=chiral_nbr_index,
-            chiral_tag=chiral_tag,
-        )
+        # expectation of x0
+        x = []
+        for _ in range(N_samples_from_base):
+            x_sample = self.sample_base_dist(
+                size=(num_atoms, 3),
+                edge_index=bond_index,
+                batch=batch,
+                chiral_index=chiral_index,
+                chiral_nbr_index=chiral_nbr_index,
+                chiral_tag=chiral_tag,
+            )
 
-        x = center_of_mass(x, batch=batch)
+            x_sample = center_of_mass(x_sample, batch=batch)
+            x.append(x_sample.view(1, num_atoms, 3))
+
+        x = torch.vstack(x).mean(dim=0)
         x0 = x.clone()
 
         n = t_schedule.size(0) - 1
