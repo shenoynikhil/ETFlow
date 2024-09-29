@@ -49,7 +49,6 @@ model_args:
     clip_during_norm: true
 
     # flow matching specific
-    normalize_node_invariants: false
     sigma: 0.1
     prior_type: harmonic
     interpolation_type: linear

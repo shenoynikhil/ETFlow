@@ -50,7 +50,6 @@ model_args:
     output_layer_norm: true
 
     # flow matching specific
-    normalize_node_invariants: false
     sigma: 0.1
     prior_type: gaussian
     interpolation_type: linear
