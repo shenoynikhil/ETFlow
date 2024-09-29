@@ -9,12 +9,12 @@ datamodule: BaseDataModule
 datamodule_args:
     dataset: EuclideanDataset
     dataset_args:
-        data_dir: /rxrx/scratch/nikhil.shenoy/processed/
+        data_dir: etflow-data/processed/
         use_ogb_feat: true
 
-    train_indices_path: /rxrx/scratch/nikhil.shenoy/QM9/train_indices.npy
-    val_indices_path: /rxrx/scratch/nikhil.shenoy/QM9/val_indices.npy
-    test_indices_path: /rxrx/scratch/nikhil.shenoy/QM9/val_indices.npy
+    train_indices_path: etflow-data/QM9/train_indices.npy
+    val_indices_path: etflow-data/QM9/val_indices.npy
+    test_indices_path: etflow-data/QM9/val_indices.npy
 
     # dataloader args
     dataloader_args:

@@ -12,9 +12,9 @@ datamodule_args:
         dataset_name: geom
         use_ogb_feat: true
 
-    train_indices_path: /nfs/scratch/students/data/geom/preprocessed/qm9_train_0.9.npy
-    val_indices_path: /nfs/scratch/students/data/geom/preprocessed/qm9_val_0.9.npy
-    test_indices_path: /nfs/scratch/students/data/geom/preprocessed/drugs_val_0.1.npy
+    train_indices_path: etflow-data/QM9/train_indices.npy
+    val_indices_path: etflow-data/QM9/val_indices.npy
+    test_indices_path: etflow-data/QM9/val_indices.npy
 
     # dataloader args
     dataloader_args:

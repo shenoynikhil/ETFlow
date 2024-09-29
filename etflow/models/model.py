@@ -496,190 +496,86 @@ class BaseFlow(BaseModel):
     @torch.no_grad()
     def sample(
         self,
-        z,
-        bond_index,
-        batch,
-        node_attr=None,
-        edge_attr=None,
-        chiral_index=None,
-        chiral_nbr_index=None,
-        chiral_tag=None,
-        n_timesteps: int = 20,
-        eps: float = 0.0,
-        start_time=0.0001,
-        end_time=0.9999,
+        z: Tensor,
+        bond_index: Tensor,
+        batch: Tensor,
+        node_attr: Tensor = None,
+        edge_attr: Tensor = None,
+        chiral_index: Tensor = None,
+        chiral_nbr_index: Tensor = None,
+        chiral_tag: Tensor = None,
+        n_timesteps: int = 50,
+        s_churn: float = 1.0,
+        t_min: float = 1.0,
+        t_max: float = 1.0,
+        std: float = 1.0,
+        sampler_type: str = "ode",
     ):
-        if eps > 0.0:
-            return self.sdeint(
-                z=z,
-                bond_index=bond_index,
-                batch=batch,
-                node_attr=node_attr,
-                edge_attr=edge_attr,
-                n_timesteps=n_timesteps,
-                start_time=start_time,
-                end_time=end_time,
-                eps=eps,
-                chiral_index=chiral_index,
-                chiral_nbr_index=chiral_nbr_index,
-                chiral_tag=chiral_tag,
-            )
+        """
+        By default performs ODE (sampler_type="ode") sampling
+        If sampler_type is set to "stochastic", then it performs stochastic sampling
+        """
+        t_schedule = torch.linspace(0, 1.0, steps=n_timesteps + 1, device=self.device)
 
-        return self.odeint(
-            z=z,
-            bond_index=bond_index,
-            batch=batch,
-            node_attr=node_attr,
-            edge_attr=edge_attr,
-            n_timesteps=n_timesteps,
-            start_time=start_time,
-            end_time=end_time,
-            chiral_index=chiral_index,
-            chiral_nbr_index=chiral_nbr_index,
-            chiral_tag=chiral_tag,
+        x = center_of_mass(
+            self.sample_base_dist((z.size(0), 3), bond_index, batch), batch=batch
         )
-
-    @torch.no_grad()
-    def odeint(
-        self,
-        z,
-        bond_index,
-        batch,
-        node_attr=None,
-        edge_attr=None,
-        chiral_index=None,
-        chiral_nbr_index=None,
-        chiral_tag=None,
-        n_timesteps: int = 20,
-        start_time=0.0001,
-        end_time=0.9999,
-    ):
-        t_schedule = torch.linspace(
-            start_time, end_time, steps=n_timesteps + 1, device=self.device
-        )
-        num_atoms = z.size(0)
-
-        x = self.sample_base_dist(
-            size=(num_atoms, 3),
-            edge_index=bond_index,
-            batch=batch,
-            chiral_index=chiral_index,
-            chiral_nbr_index=chiral_nbr_index,
-            chiral_tag=chiral_tag,
-        )
-        x = center_of_mass(x, batch=batch)
+        gamma = torch.tensor(s_churn / n_timesteps).to(self.device)
 
         n = t_schedule.size(0) - 1
         for i in range(n):
             t = t_schedule[i].repeat(x.size(0))
             t = unsqueeze_like(t, x)
-            dt = self._compute_delta_t(t_schedule, t=i)
+            delta_t = self._compute_delta_t(t_schedule, t=i)
 
-            v_t = self(
-                z=z,
-                t=t,
-                pos=x,
-                bond_index=bond_index,
-                edge_attr=edge_attr,
-                node_attr=node_attr,
-                batch=batch,
-            )
+            # We do ODE when t is outside of [s_min, s_max]
+            if (
+                t_schedule[i] < t_min or t_schedule[i] >= t_max
+            ) or sampler_type == "ode":
+                v_t = self(
+                    z=z,
+                    t=t,
+                    pos=x,
+                    bond_index=bond_index,
+                    edge_attr=edge_attr,
+                    node_attr=node_attr,
+                    batch=batch,
+                )
+                x = x + delta_t * v_t
 
-            if self.path_type == "pred_x1":
-                s = t + dt
-
-                v_t = center_of_mass(v_t + x, batch=batch)
-                x1_hat = rmsd_align(v_t, x, batch=batch)
-
-                x = dt / (1 - t) * x1_hat + (1 - s) / (1 - t) * x
-
+            # Stochastic sampling
             else:
-                x = x + dt * v_t
+                # delta_hat = gamma*delta_t
+                delta_hat = gamma * (1 - t_schedule[i])
+                t_prev_int = t_schedule[i] - delta_hat
+                t_prev = t_prev_int.repeat(x.size(0))
+                t_prev = unsqueeze_like(t_prev, x)
+                """linear noise"""
+                sig_t_sq = t_schedule[i] ** 2
+                sig_t_prev_sq = t_prev_int**2
+                mean = torch.zeros_like(x)
+                noise = torch.normal(mean=mean, std=std)
+                noise = center_of_mass(noise, batch=batch)
+                x_prev = (
+                    x
+                    + torch.sqrt(torch.abs(sig_t_sq - sig_t_prev_sq))
+                    * noise
+                    * delta_hat
+                )  # quadratic + linear decay
+
+                v_t_prev = self(
+                    z=z,
+                    t=t_prev,
+                    pos=x_prev,
+                    bond_index=bond_index,
+                    edge_attr=edge_attr,
+                    node_attr=node_attr,
+                    batch=batch,
+                )
+                # update step
+                x = x_prev + v_t_prev * (delta_t + delta_hat)
 
         if self.parity_switch == "post_hoc":
-            # perform parity switch
-            x = self.switch_parity_of_pos(
-                x, chiral_index, chiral_nbr_index, chiral_tag, batch
-            )
-
-        return x
-
-    @torch.no_grad()
-    def sdeint(
-        self,
-        z,
-        bond_index,
-        batch,
-        node_attr=None,
-        edge_attr=None,
-        chiral_index=None,
-        chiral_nbr_index=None,
-        chiral_tag=None,
-        n_timesteps: int = 20,
-        eps: float = 0.0,
-        start_time=0.0001,
-        end_time=0.9999,
-        x0: Optional[Tensor] = None,
-    ):
-        t_schedule = torch.linspace(
-            start_time, end_time, steps=n_timesteps + 1, device=self.device
-        )
-        num_atoms = z.size(0)
-
-        x = self.sample_base_dist(
-            size=(num_atoms, 3),
-            edge_index=bond_index,
-            batch=batch,
-            chiral_index=chiral_index,
-            chiral_nbr_index=chiral_nbr_index,
-            chiral_tag=chiral_tag,
-        )
-
-        x = center_of_mass(x, batch=batch)
-        x0 = x.clone()
-
-        n = t_schedule.size(0) - 1
-        for i in range(n):
-            t = t_schedule[i].repeat(x.size(0))
-            t = unsqueeze_like(t, x)
-            dt = self._compute_delta_t(t_schedule, t=i)
-
-            v_t = self(
-                z=z,
-                t=t,
-                pos=x,
-                bond_index=bond_index,
-                edge_attr=edge_attr,
-                node_attr=node_attr,
-                batch=batch,
-            )
-
-            dW = torch.randn_like(x)
-            dW = center_of_mass(dW, batch=batch)
-            dW = torch.sqrt(2 * dt * eps) * dW
-
-            if self.path_type == "pred_x1":
-                s = t + dt
-
-                v_t = center_of_mass(v_t + x, batch=batch)
-                x1_hat = rmsd_align(v_t, x, batch=batch)
-
-                s_t = self.compute_s_from_x1(t=t, x1=x1_hat, x0=x0, x=x)
-                s_t = center_of_mass(s_t, batch=batch)
-                s_t = 0.5 * self.sigma**2 * s_t
-
-                x = dt / (1 - t) * x1_hat + (1 - s) / (1 - t) * x
-                x = x + eps * s_t * dt + self.sigma_t(t) * dW
-
-            else:
-                s_t = self.compute_s_from_v(t=t, v=v_t, x0=x0, x=x)
-                s_t = center_of_mass(s_t, batch=batch)
-                s_t = 0.5 * self.sigma**2 * s_t
-                x = x + dt * (v_t + eps * s_t)
-                x = x + self.sigma_t(t) * dW
-
-        if self.parity_switch == "post_hoc":
-            # perform parity switch
             x = self.switch_parity_of_pos(
                 x, chiral_index, chiral_nbr_index, chiral_tag, batch
             )

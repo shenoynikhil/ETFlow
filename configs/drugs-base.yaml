@@ -12,9 +12,9 @@ datamodule_args:
         dataset_name: geom
         use_ogb_feat: true
 
-    train_indices_path: /nfs/scratch/students/data/geom/preprocessed/drugs_train_0.10.npy
-    val_indices_path: /nfs/scratch/students/data/geom/preprocessed/drugs_val_0.10.npy
-    test_indices_path: /nfs/scratch/students/data/geom/preprocessed/drugs_val_0.1.npy
+    train_indices_path: etflow-data/DRUGS/train_indices.npy
+    val_indices_path: etflow-data/DRUGS/val_indices.npy
+    test_indices_path: etflow-data/DRUGS/val_indices.npy # does not matter since we use a diff testing protocol
 
     # dataloader args
     dataloader_args:

@@ -41,6 +41,11 @@ class GEOM(Dataset):
         self._check_files_exists(data_dir)
 
         # load memmap files
+        # print current working directory
+        import os
+
+        print(os.getcwd())
+
         path = osp.join(data_dir, self.processed_file_names["atomic_inputs"])
         self.atomic_inputs = load_memmap(path, np.float32).reshape(-1, 5)
 

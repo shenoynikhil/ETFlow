@@ -1,10 +1,14 @@
-"""Script to generate and evaluate samples from a trained diffusion model.
+"""Script to generate samples from a trained model.
 
 Usage
 ```bash
-# requires config for loading model and data
-# and checkpoint for loading model weights
-TODO
+python etflow/eval.py \
+    --config=</path/to/config> \
+    --checkpoint=</path/to/checkpoint> \
+    --count_indices=</path/to/count_indices.npy> \
+    --dataframe_path=</path/to/dataframe.csv> \
+    --dataset_type=drugs \ # or qm9
+    -n 50
 ```
 """
 import argparse
@@ -29,8 +33,6 @@ from etflow.utils import instantiate_dataset, instantiate_model, read_yaml
 
 torch.set_float32_matmul_precision("high")
 
-DATA_FRAME_PATH = "/rxrx/scratch/nikhil.shenoy/geom.csv"
-
 
 def get_datatime():
     return datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -43,12 +45,9 @@ def cuda_available():
 def main(
     config: str,
     checkpoint_path: str,
+    dataframe_path: str,
     indices: np.ndarray,
     counts: np.ndarray,
-    nsteps: int,
-    batch_size: int,
-    eps: float,
-    subset_type: str,
 ):
     if cuda_available():
         log.info("CUDA is available. Using GPU for sampling.")
@@ -74,7 +73,7 @@ def main(
     model.eval()
 
     # max batch size
-    max_batch_size = batch_size
+    max_batch_size = config["batch_size"]
 
     # load indices
     for i, idx in tqdm(enumerate(indices), total=len(indices)):
@@ -127,11 +126,15 @@ def main(
                     edge_index,
                     batch,
                     node_attr=node_attr,
-                    n_timesteps=nsteps,
+                    n_timesteps=config["nsteps"],
                     chiral_index=chiral_index,
                     chiral_nbr_index=chiral_nbr_index,
                     chiral_tag=chiral_tag,
-                    eps=eps,
+                    s_churn=config["churn"],
+                    t_min=config["t_min"],
+                    t_max=config["t_max"],
+                    std=config["std"],
+                    sampler_type=config["sample_type"],
                 )
             end = time.time()
             times.append((end - start) / batch_size)  # store time per conformer
@@ -152,12 +155,12 @@ def main(
 
     # compile all generate pkl into a single file
     log.info("Compile all generated pickle files into a single file")
-    df = pd.read_csv(DATA_FRAME_PATH)
+    df = pd.read_csv(dataframe_path)
     l = set([int(x.split(".pkl")[0]) for x in os.listdir(output_dir)])
     test_smiles = set([dataset[idx].smiles for idx in l])
     log.info(f"Number of generated files: {len(l)}")
     df_sub = df[
-        (df.partition == subset_type) & (df.smiles.isin(test_smiles))
+        (df.partition == config["subset_type"]) & (df.smiles.isin(test_smiles))
     ].reset_index()
     df_sub["pos_ref"] = df_sub.apply(
         lambda row: dataset[row["index"]].pos.unsqueeze(0).numpy(), axis=1
@@ -191,20 +194,18 @@ if __name__ == "__main__":
     parser.add_argument("--config", "-c", type=str, required=True)
     parser.add_argument("--checkpoint", "-k", type=str, required=True)
     parser.add_argument("--count_indices", "-i", type=str, required=True)
+    parser.add_argument("--dataframe_path", "-df", type=str, required=True)
     parser.add_argument("--output_dir", "-o", type=str, required=False, default="logs/")
     parser.add_argument(
         "--dataset_type", "-t", type=str, required=False, default="drugs"
     )
+    parser.add_argument("--sampler_type", "-s", type=str, required=False, default="ode")
     parser.add_argument("--batch_size", "-b", type=int, required=False, default=32)
     parser.add_argument("--nsteps", "-n", type=int, required=False, default=50)
-    parser.add_argument(
-        "--eps",
-        "-e",
-        type=float,
-        default=0.0,
-        required=False,
-        help="Noise coefficient for SFM",
-    )
+    parser.add_argument("--churn", "-ch", type=float, required=False, default=1.0)
+    parser.add_argument("--t_min", "-mn", type=float, required=False, default=0.0001)
+    parser.add_argument("--t_max", "-mx", type=float, required=False, default=0.9999)
+    parser.add_argument("--std", "-st", type=float, required=False, default=1.0)
     parser.add_argument("--debug", "-d", action="store_true")
 
     args = parser.parse_args()
@@ -214,10 +215,9 @@ if __name__ == "__main__":
     log.info(f"Debug mode: {debug}")
 
     # read config
-    config_path = args.config
-    assert osp.exists(config_path), "Config path does not exist."
-    log.info(f"Loading config from: {config_path}")
-    config = read_yaml(config_path)
+    assert osp.exists(args.config), "Config path does not exist."
+    log.info(f"Loading config from: {args.config}")
+    config = read_yaml(args.config)
     task_name = config.get("task_name", "default")
 
     # start wandb
@@ -231,8 +231,10 @@ if __name__ == "__main__":
 
         # log experiment info
         log_dict = {
-            "config": config_path,
+            "config": args.config,
             "checkpoint": args.checkpoint,
+            "dataset_type": args.dataset_type,
+            "sampler_type": args.sampler_type,
             "debug": debug,
         }
 
@@ -245,7 +247,7 @@ if __name__ == "__main__":
     # setup output directory for storing samples
     output_dir = osp.join(
         args.output_dir,
-        f"samples/{task_name}/{get_datatime()}/flow_nsteps_{args.nsteps}_eps_{args.eps}",
+        f"samples/{task_name}/{get_datatime()}/flow_nsteps_{args.nsteps}",
     )
     if not debug:
         os.makedirs(output_dir, exist_ok=True)
@@ -257,13 +259,18 @@ if __name__ == "__main__":
     indices, counts = np.load(count_indices_path)
     log.info(f"Will be generating samples for {len(indices)} counts.")
 
-    main(
-        config,
-        checkpoint_path,
-        indices,
-        counts,
-        nsteps=args.nsteps,
-        batch_size=args.batch_size,
-        eps=args.eps,
-        subset_type=args.dataset_type,
+    # update config
+    config.update(
+        {
+            "nsteps": args.nsteps,
+            "churn": args.churn,
+            "t_min": args.t_min,
+            "t_max": args.t_max,
+            "batch_size": args.batch_size,
+            "subset_type": args.dataset_type,
+            "sample_type": args.sampler_type,
+            "std": args.std,
+        }
     )
+
+    main(config, checkpoint_path, args.dataframe_path, indices, counts)

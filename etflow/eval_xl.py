@@ -7,6 +7,7 @@ Usage
 python etflow/eval_xl.py \
     --config /path/to/config.yaml \
     --checkpoint /path/to/checkpoint.pth \
+    --smiles_path /path/to/smiles.csv \
     --batch_size 16 \
     --nsteps 50
 ```
@@ -19,12 +20,12 @@ import os.path as osp
 import numpy as np
 import pandas as pd
 import torch
-import wandb
 from lightning import seed_everything
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
+import wandb
 from etflow.commons import MoleculeFeaturizer, load_pkl, save_pkl
 from etflow.utils import instantiate_model, read_yaml
 
@@ -68,9 +69,8 @@ def main(
     checkpoint_path: str,
     nsteps: int,
     batch_size: int,
-    eps: float,
     debug: bool,
-    unfiltered: bool,
+    smiles_path: str,
 ):
     seed = config.get("seed", 42)
     seed_everything(seed)
@@ -83,18 +83,12 @@ def main(
         device = torch.device("cpu")
 
     # load mols
-    smiles_df = pd.read_csv(
-        osp.join(
-            BASE_PATH,
-            "XL/test_smiles.csv" if unfiltered else "XL/test_smiles_filtered.csv",
-        )
-    )
+    smiles_df = pd.read_csv(smiles_path)
     smiles_list = smiles_df["corrected_smiles"].tolist()
     counts = smiles_df["n_conformers"].tolist()
     mols = load_pkl(osp.join(BASE_PATH, "XL/test_mols.pkl"))
 
     # instantiate datamodule and model
-    model_type = config["model"]
     model = instantiate_model(config["model"], config["model_args"])
 
     # load model weights
@@ -153,29 +147,17 @@ def main(
             chiral_nbr_index = batched_data["chiral_nbr_index"].to(device)
             chiral_tag = batched_data["chiral_tag"].to(device)
 
-            if model_type == "BaseSFM":
-                # generate samples
-                pos = model.sample(
-                    z,
-                    edge_index,
-                    batch,
-                    node_attr=node_attr,
-                    n_timesteps=nsteps,
-                    eps=eps,
-                    use_sde=True,
-                )
-            else:
-                # generate samples
-                pos = model.sample(
-                    z,
-                    edge_index,
-                    batch,
-                    node_attr=node_attr,
-                    n_timesteps=nsteps,
-                    chiral_index=chiral_index,
-                    chiral_nbr_index=chiral_nbr_index,
-                    chiral_tag=chiral_tag,
-                )
+            # generate samples
+            pos = model.sample(
+                z,
+                edge_index,
+                batch,
+                node_attr=node_attr,
+                n_timesteps=nsteps,
+                chiral_index=chiral_index,
+                chiral_nbr_index=chiral_nbr_index,
+                chiral_tag=chiral_tag,
+            )
 
             # reshape to (num_samples, num_atoms, 3) using batch
             pos = pos.view(batch_size, -1, 3).cpu().detach().numpy()
@@ -228,18 +210,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", "-c", type=str, required=True)
     parser.add_argument("--checkpoint", "-k", type=str, required=True)
+    parser.add_argument("--smiles_path", "-dp", type=str, required=True)
     parser.add_argument("--output_dir", "-o", type=str, required=False, default="logs/")
     parser.add_argument("--batch_size", "-b", type=int, required=False, default=16)
     parser.add_argument("--nsteps", "-n", type=int, required=False, default=50)
-    parser.add_argument("--unfiltered", "-u", action="store_true")
-    parser.add_argument(
-        "--eps",
-        "-e",
-        type=float,
-        default=1.0,
-        required=False,
-        help="Noise coefficient for SFM",
-    )
     parser.add_argument("--debug", "-d", action="store_true")
 
     args = parser.parse_args()
@@ -269,7 +243,6 @@ if __name__ == "__main__":
             "config": config_path,
             "checkpoint": args.checkpoint,
             "debug": debug,
-            "unfiltered": args.unfiltered,
             "nsteps": args.nsteps,
         }
 
@@ -292,7 +265,6 @@ if __name__ == "__main__":
         checkpoint_path,
         nsteps=args.nsteps,
         batch_size=args.batch_size,
-        eps=args.eps,
         debug=debug,
-        unfiltered=args.unfiltered,
+        smiles_path=args.smiles_path,
     )
