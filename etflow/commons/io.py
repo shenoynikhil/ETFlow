@@ -52,3 +52,13 @@ def get_local_cache() -> str:
     cache_dir = os.path.expanduser(os.path.expandvars(CACHE_DIR))
     os.makedirs(cache_dir, exist_ok=True)
     return cache_dir
+
+
+def get_base_data_dir() -> str:
+    # get the environment variable DATA_DIR
+    data_dir = os.environ.get("DATA_DIR", None)
+
+    if data_dir is None:
+        raise ValueError("DATA_DIR environment variable is not set.")
+
+    return data_dir

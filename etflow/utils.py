@@ -162,7 +162,6 @@ def instantiate_datamodule(
             dataloader_args=dataloader_args,
             train_indices_path=datamodule_args.get("train_indices_path", None),
             val_indices_path=datamodule_args.get("val_indices_path", None),
-            test_indices_path=datamodule_args.get("test_indices_path", None),
         )
     else:
         raise NotImplementedError
