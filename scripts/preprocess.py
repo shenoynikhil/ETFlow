@@ -49,16 +49,14 @@ def read_mol(
         # maps the atom index to atoms in smiles string
         # replicates the exact mol structure i.e.
         # atom index and edge index
-        smiles = [
-            dm.to_smiles(
-                mol,
-                canonical=False,
-                explicit_hs=True,
-                with_atom_indices=True,
-                isomeric=True,
-            )
-            for mol in mols
-        ]
+        smiles_ = dm.to_smiles(
+            mols[0],
+            canonical=False,
+            explicit_hs=True,
+            with_atom_indices=True,
+            isomeric=True,
+        )
+        smiles = [smiles_] * len(confs)
 
         # atom specific information, positions, atomic numbers and charges
         positions: np.ndarray = np.concatenate(
