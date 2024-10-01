@@ -1,5 +1,7 @@
-# ET-Flow: Equivariant Flow Matching for Molecular Conformer Generation [Arxiv]()
-ET-Flow is a generative model for generating small molecule conformations using equivariant transformers and flow matching.
+# ET-Flow: Equivariant Flow Matching for Molecular Conformer Generation
+Implementation of [Equivariant Flow Matching for Molecule Conformer Generation]() by M Hassan, N Shenoy, J Lee, H Stark, S Thaler and D Beaini.
+
+ET-Flow is a state-of-the-art generative model for generating small molecule conformations using equivariant transformers and flow matching.
 
 ### Setup Environment
 Run the following commands to setup the environment:
@@ -79,6 +81,9 @@ Our codebase is built using the following open-source contributions,
 - [torchmd-net](https://github.com/torchmd/torchmd-net)
 - [e3-diffusion-for-molecules](https://github.com/ehoogeboom/e3_diffusion_for_molecules)
 - [pytorch lightning](https://lightning.ai/pytorch-lightning)
+
+### Contact
+For further questions, feel free to raise an issue.
 
 ### Citation
 TODO!
