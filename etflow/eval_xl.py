@@ -7,7 +7,6 @@ Usage
 python etflow/eval_xl.py \
     --config /path/to/config.yaml \
     --checkpoint /path/to/checkpoint.pth \
-    --smiles_path /path/to/smiles.csv \
     --batch_size 16 \
     --nsteps 50
 ```
@@ -26,8 +25,10 @@ from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
 import wandb
-from etflow.commons import MoleculeFeaturizer, load_pkl, save_pkl
+from etflow.commons import MoleculeFeaturizer, get_base_data_dir, load_pkl, save_pkl
 from etflow.utils import instantiate_model, read_yaml
+
+DATA_DIR = get_base_data_dir()
 
 torch.set_float32_matmul_precision("high")
 
@@ -53,9 +54,6 @@ def get_data(mol, use_ogb_feat: bool, use_edge_feat: bool):
     )
 
 
-BASE_PATH = "/nfs/scratch/students/data/geom/preprocessed/"
-
-
 def get_datatime():
     return datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
@@ -70,7 +68,6 @@ def main(
     nsteps: int,
     batch_size: int,
     debug: bool,
-    smiles_path: str,
 ):
     seed = config.get("seed", 42)
     seed_everything(seed)
@@ -83,10 +80,14 @@ def main(
         device = torch.device("cpu")
 
     # load mols
+    smiles_path = osp.join(DATA_DIR, "XL/test_smiles.csv")
     smiles_df = pd.read_csv(smiles_path)
     smiles_list = smiles_df["corrected_smiles"].tolist()
     counts = smiles_df["n_conformers"].tolist()
-    mols = load_pkl(osp.join(BASE_PATH, "XL/test_mols.pkl"))
+
+    # load mols
+    mols_path = osp.join(DATA_DIR, "XL/test_mols.pkl")
+    mols = load_pkl(mols_path)
 
     # instantiate datamodule and model
     model = instantiate_model(config["model"], config["model_args"])
@@ -210,7 +211,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", "-c", type=str, required=True)
     parser.add_argument("--checkpoint", "-k", type=str, required=True)
-    parser.add_argument("--smiles_path", "-dp", type=str, required=True)
     parser.add_argument("--output_dir", "-o", type=str, required=False, default="logs/")
     parser.add_argument("--batch_size", "-b", type=int, required=False, default=16)
     parser.add_argument("--nsteps", "-n", type=int, required=False, default=50)

@@ -5,8 +5,6 @@ Usage
 python etflow/eval.py \
     --config=</path/to/config> \
     --checkpoint=</path/to/checkpoint> \
-    --count_indices=</path/to/count_indices.npy> \
-    --dataframe_path=</path/to/dataframe.csv> \
     --dataset_type=drugs \ # or qm9
     -n 50
 ```
@@ -27,7 +25,7 @@ from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
 import wandb
-from etflow.commons import load_pkl, save_pkl
+from etflow.commons import get_base_data_dir, load_pkl, save_pkl
 from etflow.models import BaseFlow
 from etflow.utils import instantiate_dataset, instantiate_model, read_yaml
 
@@ -193,8 +191,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", "-c", type=str, required=True)
     parser.add_argument("--checkpoint", "-k", type=str, required=True)
-    parser.add_argument("--count_indices", "-i", type=str, required=True)
-    parser.add_argument("--dataframe_path", "-df", type=str, required=True)
+    parser.add_argument(
+        "--count_indices", "-i", type=str, required=False, default="count_indices.npy"
+    )
     parser.add_argument("--output_dir", "-o", type=str, required=False, default="logs/")
     parser.add_argument(
         "--dataset_type", "-t", type=str, required=False, default="drugs"
@@ -213,6 +212,13 @@ if __name__ == "__main__":
     # debug mode
     debug = args.debug
     log.info(f"Debug mode: {debug}")
+
+    # base data
+    DATA_DIR = get_base_data_dir()
+
+    # set dataframe path
+    df_path = osp.join(DATA_DIR, "processed", "geom.csv")
+    assert osp.exists(df_path), f"Dataframe path {df_path} not found"
 
     # read config
     assert osp.exists(args.config), "Config path does not exist."
@@ -253,8 +259,12 @@ if __name__ == "__main__":
         os.makedirs(output_dir, exist_ok=True)
 
     # load count indices path, indices for what smiles to use
-    count_indices_path = args.count_indices
-    assert osp.exists(count_indices_path), "Count indices path does not exist."
+    count_indices_path = osp.join(
+        DATA_DIR, args.dataset_type.upper(), args.count_indices
+    )
+    assert osp.exists(
+        count_indices_path
+    ), f"Count indices path: {count_indices_path} does not exist."
     log.info(f"Loading count indices from: {count_indices_path}")
     indices, counts = np.load(count_indices_path)
     log.info(f"Will be generating samples for {len(indices)} counts.")

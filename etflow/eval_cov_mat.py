@@ -1,10 +1,10 @@
 import argparse
 import os
 
-import wandb
 from loguru import logger as log
 
-from etflow.commons import load_pkl, save_pkl
+import wandb
+from etflow.commons import load_pkl
 from etflow.commons.covmat import CovMatEvaluator, print_covmat_results
 
 if __name__ == "__main__":
@@ -22,14 +22,6 @@ if __name__ == "__main__":
         default=False,
         help="Use alignmol for matching",
     )
-    parser.add_argument(
-        "--save_rmsd_matrix",
-        "-s",
-        action="store_true",
-        default=False,
-        help="Save rmsd matrix for molecules",
-    )
-
     args = parser.parse_args()
 
     path = args.path
@@ -61,11 +53,6 @@ if __name__ == "__main__":
     # log as table
     table = wandb.Table(dataframe=cov_df)
     wandb.run.log({"Coverage Metrics": table})
-
-    if args.save_rmsd_matrix:
-        dir_path = os.path.dirname(path)
-        rmsd_path = os.path.join(dir_path, "rmsd_results.pkl")
-        save_pkl(file_path=rmsd_path, data=rmsd_results)
 
     # log matching metrics
     wandb.run.log(matching_metrics)
