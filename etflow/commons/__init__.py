@@ -17,6 +17,7 @@ from .utils import (
     get_atomic_number_and_charge,
     signed_volume,
 )
+from .xtb import xtb_energy, xtb_optimize
 
 __all__ = [
     "MoleculeFeaturizer",
