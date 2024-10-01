@@ -2,7 +2,7 @@
 from typing import Optional
 
 import torch
-from torch_scatter import scatter
+from torch_geometric.utils import scatter
 
 
 def correct_tensor_shape(t: torch.Tensor) -> torch.Tensor:

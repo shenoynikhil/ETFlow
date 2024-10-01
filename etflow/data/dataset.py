@@ -4,8 +4,6 @@ from etflow.commons import MoleculeFeaturizer
 
 from .geom import GEOM
 
-DATASET_MAPPING = {"geom": GEOM}
-
 
 class EuclideanDataset(Dataset):
     """Returns 3D Graph for different datasets
@@ -14,20 +12,20 @@ class EuclideanDataset(Dataset):
     -----
     ```python
     from etflow.data import EuclideanDataset
-    dataset = EuclideanDataset("geom")
+    # pass path to processed data_dir
+    dataset = EuclideanDataset(data_dir=<>)
     ```
     """
 
     def __init__(
         self,
-        dataset_name: str,
+        data_dir: str,
         use_ogb_feat: bool = False,
         use_edge_feat: bool = False,
     ):
         super().__init__()
         # instantiate dataset
-        self.dataset_name = dataset_name
-        self.dataset = DATASET_MAPPING[dataset_name]()
+        self.dataset = GEOM(data_dir=data_dir)
         self.mol_feat = MoleculeFeaturizer()
         self.use_ogb_feat = use_ogb_feat
         self.use_edge_feat = use_edge_feat

@@ -162,7 +162,6 @@ def instantiate_datamodule(
             dataloader_args=dataloader_args,
             train_indices_path=datamodule_args.get("train_indices_path", None),
             val_indices_path=datamodule_args.get("val_indices_path", None),
-            test_indices_path=datamodule_args.get("test_indices_path", None),
         )
     else:
         raise NotImplementedError
@@ -178,7 +177,7 @@ def instantiate_trainer(
     debug: bool,
 ) -> Trainer:
     if debug:
-        trainer_args["fast_dev_run"] = 100
+        trainer_args["fast_dev_run"] = 1000
         trainer_args["devices"] = 1  # check on single GPU
         trainer_args["strategy"] = "auto"  # auto select strategy
 

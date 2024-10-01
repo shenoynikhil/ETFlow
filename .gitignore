@@ -20,3 +20,4 @@ notebooks/
 errors/
 outputs/
 .ipynb_checkpoints/
+slurm/

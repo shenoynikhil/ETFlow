@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 import torch
 from torch import Tensor, nn
 from torch_geometric.nn import MessagePassing
-from torch_scatter import scatter
+from torch_geometric.utils import scatter
 
 from .modules import (
     CoorsNorm,
@@ -191,17 +191,27 @@ class EquivariantMultiHeadAttention(MessagePassing):
 
         # value pathway
         v_j = v_j * dv  # multiply with edge attr features
-        x, vec1, vec2, vec3 = torch.split(v_j, self.head_dim, dim=2)
+
+        if self.so3_equivariant:
+            x, vec1, vec2, vec3 = torch.split(v_j, self.head_dim, dim=2)
+        else:
+            x, vec1, vec2 = torch.split(v_j, self.head_dim, dim=2)
+            vec3 = None
 
         # update scalar features
         x = x * attn.unsqueeze(2)  # (num_edges, num_heads, head_dim)
         # update vector features (num_edges, 3, num_heads, head_dim)
-        vec = (
-            vec_j * vec1.unsqueeze(1)
-            + vec2.unsqueeze(1) * d_ij.unsqueeze(2).unsqueeze(3)
-            + vec3.unsqueeze(1)
-            * torch.cross(d_ij.unsqueeze(2).unsqueeze(3), vec_j, dim=1)
-        )
+        if self.so3_equivariant:
+            vec = (
+                vec_j * vec1.unsqueeze(1)
+                + vec2.unsqueeze(1) * d_ij.unsqueeze(2).unsqueeze(3)
+                + vec3.unsqueeze(1)
+                * torch.cross(d_ij.unsqueeze(2).unsqueeze(3), vec_j, dim=1)
+            )
+        else:
+            vec = vec_j * vec1.unsqueeze(1) + vec2.unsqueeze(1) * d_ij.unsqueeze(
+                2
+            ).unsqueeze(3)
         return x, vec
 
     def aggregate(

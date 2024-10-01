@@ -1,8 +1,8 @@
 from .covmat import build_conformer
 from .featurization import MoleculeFeaturizer
 from .io import (
+    get_base_data_dir,
     get_local_cache,
-    load_hdf5,
     load_json,
     load_memmap,
     load_npz,
@@ -26,8 +26,8 @@ __all__ = [
     "save_pkl",
     "load_npz",
     "load_memmap",
-    "load_hdf5",
     "save_memmap",
+    "get_base_data_dir",
     "get_local_cache",
     "get_atomic_number_and_charge",
     "build_conformer",

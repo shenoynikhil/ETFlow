@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch_geometric.data import Data, Dataset
 
-from etflow.commons import load_memmap, load_npz
+from etflow.commons import get_base_data_dir, load_memmap, load_npz
 
 
 class GEOM(Dataset):
@@ -25,30 +25,26 @@ class GEOM(Dataset):
     Parameters
     ----------
     data_dir: str
-        Path to pre-processed data. Default is "~/.cache/data/geom/preprocessed"
+        Relative Path to pre-processed data. If `DATA_DIR` env variable is set,
+        the processed_files will be loaded from `DATA_DIR/data_dir`. Make sure
+        the `DATA_DIR` is set to the correct path.
     """
 
     processed_file_names: Dict[str, str] = {
         "atomic_inputs": "atomic_inputs.memmap",
-        "edge_index": "edge_index.memmap",
-        "edge_index_range": "edge_index_range.memmap",
         "energy": "energy.memmap",
         "pos_index_range": "pos_index_range.memmap",
         "smiles": "smiles.npz",
         "subset": "subset.npz",
-        "zmatrix": "zmatrix.memmap",
-        "zmatrix_index_range": "zmatrix_index_range.memmap",
     }
 
     def __init__(self, data_dir: str = None):
         super().__init__()
-        if data_dir is None:
-            cache_dir = "/nfs/scratch/students/data/"
-            data_dir = osp.join(cache_dir, "geom", "preprocessed-v2")
 
+        base_data_dir = get_base_data_dir()
+        data_dir = osp.join(base_data_dir, data_dir)
         self._check_files_exists(data_dir)
 
-        # load memmap files
         path = osp.join(data_dir, self.processed_file_names["atomic_inputs"])
         self.atomic_inputs = load_memmap(path, np.float32).reshape(-1, 5)
 

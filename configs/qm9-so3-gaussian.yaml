@@ -1,5 +1,5 @@
 # task name for logging
-task_name: flow-qm9/base
+task_name: flow/qm9-so3-gaussian
 
 # unique seed for experiment reproducibility
 seed: 42
@@ -60,7 +60,7 @@ model_args:
 
     # lr scheduler args
     lr_scheduler_type: CosineAnnealingWarmupRestarts
-    first_cycle_steps: 375_000
+    first_cycle_steps: 250_000
     cycle_mult: 1.0
     max_lr: 7.e-4
     min_lr: 1.e-8
@@ -98,7 +98,7 @@ logger_args:
 trainer: Trainer
 trainer_args:
     max_epochs: 500
-    devices: 4
-    limit_train_batches: 1500
+    devices: 8
+    limit_train_batches: 1000
     strategy: ddp
     accelerator: auto

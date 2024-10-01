@@ -9,12 +9,11 @@ datamodule: BaseDataModule
 datamodule_args:
     dataset: EuclideanDataset
     dataset_args:
-        dataset_name: geom
+        data_dir: processed/
         use_ogb_feat: true
 
-    train_indices_path: /nfs/scratch/students/data/geom/preprocessed/drugs_train_0.10.npy
-    val_indices_path: /nfs/scratch/students/data/geom/preprocessed/drugs_val_0.10.npy
-    test_indices_path: /nfs/scratch/students/data/geom/preprocessed/drugs_val_0.1.npy
+    train_indices_path: DRUGS/train_indices.npy
+    val_indices_path: DRUGS/val_indices.npy
 
     # dataloader args
     dataloader_args:
@@ -49,7 +48,6 @@ model_args:
     clip_during_norm: true
 
     # flow matching specific
-    normalize_node_invariants: false
     sigma: 0.1
     prior_type: harmonic
     interpolation_type: linear

@@ -3,7 +3,7 @@ from typing import Optional
 
 import torch
 from torch import Tensor, nn
-from torch_scatter import scatter
+from torch_geometric.utils import scatter
 
 from .utils import GatedEquivariantBlock, act_class_mapping
 

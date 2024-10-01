@@ -1,7 +1,6 @@
 from typing import Optional
 
 import torch
-from loguru import logger as log
 from torch import Tensor
 
 from etflow.commons import signed_volume
@@ -14,7 +13,7 @@ from etflow.models.utils import (
     rmsd_align,
     unsqueeze_like,
 )
-from etflow.networks.torchmd_net import TensorNetDynamics, TorchMDDynamics
+from etflow.networks.torchmd_net import TorchMDDynamics
 
 
 class BaseFlow(BaseModel):
@@ -49,12 +48,9 @@ class BaseFlow(BaseModel):
         clip_during_norm: bool = False,
         max_num_neighbors: int = 32,
         so3_equivariant: bool = False,
-        equivariance_invariance_group: str = "SO(3)",
-        dtype: str = torch.float32,
         # flow matching args
         sigma: float = 0.1,
         interpolation_type: str = "linear",
-        normalize_node_invariants=False,
         prior_type: str = "gaussian",
         sample_time_dist: str = "uniform",
         harmonic_alpha: float = 1.0,
@@ -132,25 +128,6 @@ class BaseFlow(BaseModel):
                 clip_during_norm=clip_during_norm,
                 so3_equivariant=so3_equivariant,
             )
-        elif network_type == "TensorNetDynamics":
-            self.network = TensorNetDynamics(
-                hidden_channels=hidden_channels,
-                num_layers=num_layers,
-                num_rbf=num_rbf,
-                rbf_type=rbf_type,
-                trainable_rbf=trainable_rbf,
-                activation=activation,
-                cutoff_lower=cutoff_lower,
-                cutoff_upper=cutoff_upper,
-                max_num_neighbors=max_num_neighbors,
-                max_z=max_z,
-                node_attr_dim=node_attr_dim,
-                equivariance_invariance_group=equivariance_invariance_group,
-                clip_during_norm=clip_during_norm,
-                reduce_op=reduce_op,
-                dtype=dtype,
-                output_layer_norm=output_layer_norm,
-            )
         else:
             raise NotImplementedError(
                 f"Network type {network_type} not implemented for BaseFlow"
@@ -159,7 +136,6 @@ class BaseFlow(BaseModel):
         self.sigma = sigma
         self.cutoff = cutoff_upper
         self.parity_switch = parity_switch
-        self.normalize_node_invariants = normalize_node_invariants
         self.prior_type = prior_type
         self.interpolation_type = interpolation_type
         self.sample_time_dist = sample_time_dist
@@ -169,13 +145,9 @@ class BaseFlow(BaseModel):
         self.path_type = path_type
 
         if parity_switch is not None:
-            assert parity_switch in [
-                "prior",
-                "post_hoc",
-            ], f"Parity switch {parity_switch} not implemented"
-            log.info(
-                f"Will be performing the following parity switch: {self.parity_switch}"
-            )
+            assert (
+                parity_switch == "post_hoc"
+            ), f"Parity switch {parity_switch} not implemented"
 
         assert (
             self.prior_type in self.__prior_types__
@@ -385,12 +357,6 @@ class BaseFlow(BaseModel):
                 size=size, edge_index=edge_index, batch=batch, smiles=smiles
             ).to(self.device)
 
-        # if parity switch, switch prior correctly
-        if self.parity_switch == "prior":
-            x0 = self.switch_parity_of_pos(
-                x0, chiral_index, chiral_nbr_index, chiral_tag, batch
-            )
-
         return x0
 
     def sample_time(
@@ -426,12 +392,6 @@ class BaseFlow(BaseModel):
     ):
         # center the positions at 0
         pos = center_of_mass(pos, batch=batch)
-
-        # normalize node attributes
-        # This has been empirically useful in EDM.
-        # scale one-hot and charges so that model focuses on positions
-        if self.normalize_node_invariants and node_attr is not None:
-            node_attr = node_attr * 0.1
 
         # compute extended bond index
         edge_index, edge_type = extend_bond_index(
@@ -536,190 +496,86 @@ class BaseFlow(BaseModel):
     @torch.no_grad()
     def sample(
         self,
-        z,
-        bond_index,
-        batch,
-        node_attr=None,
-        edge_attr=None,
-        chiral_index=None,
-        chiral_nbr_index=None,
-        chiral_tag=None,
-        n_timesteps: int = 20,
-        eps: float = 0.0,
-        start_time=0.0001,
-        end_time=0.9999,
+        z: Tensor,
+        bond_index: Tensor,
+        batch: Tensor,
+        node_attr: Tensor = None,
+        edge_attr: Tensor = None,
+        chiral_index: Tensor = None,
+        chiral_nbr_index: Tensor = None,
+        chiral_tag: Tensor = None,
+        n_timesteps: int = 50,
+        s_churn: float = 1.0,
+        t_min: float = 1.0,
+        t_max: float = 1.0,
+        std: float = 1.0,
+        sampler_type: str = "ode",
     ):
-        if eps > 0.0:
-            return self.sdeint(
-                z=z,
-                bond_index=bond_index,
-                batch=batch,
-                node_attr=node_attr,
-                edge_attr=edge_attr,
-                n_timesteps=n_timesteps,
-                start_time=start_time,
-                end_time=end_time,
-                eps=eps,
-                chiral_index=chiral_index,
-                chiral_nbr_index=chiral_nbr_index,
-                chiral_tag=chiral_tag,
-            )
+        """
+        By default performs ODE (sampler_type="ode") sampling
+        If sampler_type is set to "stochastic", then it performs stochastic sampling
+        """
+        t_schedule = torch.linspace(0, 1.0, steps=n_timesteps + 1, device=self.device)
 
-        return self.odeint(
-            z=z,
-            bond_index=bond_index,
-            batch=batch,
-            node_attr=node_attr,
-            edge_attr=edge_attr,
-            n_timesteps=n_timesteps,
-            start_time=start_time,
-            end_time=end_time,
-            chiral_index=chiral_index,
-            chiral_nbr_index=chiral_nbr_index,
-            chiral_tag=chiral_tag,
+        x = center_of_mass(
+            self.sample_base_dist((z.size(0), 3), bond_index, batch), batch=batch
         )
-
-    @torch.no_grad()
-    def odeint(
-        self,
-        z,
-        bond_index,
-        batch,
-        node_attr=None,
-        edge_attr=None,
-        chiral_index=None,
-        chiral_nbr_index=None,
-        chiral_tag=None,
-        n_timesteps: int = 20,
-        start_time=0.0001,
-        end_time=0.9999,
-    ):
-        t_schedule = torch.linspace(
-            start_time, end_time, steps=n_timesteps + 1, device=self.device
-        )
-        num_atoms = z.size(0)
-
-        x = self.sample_base_dist(
-            size=(num_atoms, 3),
-            edge_index=bond_index,
-            batch=batch,
-            chiral_index=chiral_index,
-            chiral_nbr_index=chiral_nbr_index,
-            chiral_tag=chiral_tag,
-        )
-        x = center_of_mass(x, batch=batch)
+        gamma = torch.tensor(s_churn / n_timesteps).to(self.device)
 
         n = t_schedule.size(0) - 1
         for i in range(n):
             t = t_schedule[i].repeat(x.size(0))
             t = unsqueeze_like(t, x)
-            dt = self._compute_delta_t(t_schedule, t=i)
+            delta_t = self._compute_delta_t(t_schedule, t=i)
 
-            v_t = self(
-                z=z,
-                t=t,
-                pos=x,
-                bond_index=bond_index,
-                edge_attr=edge_attr,
-                node_attr=node_attr,
-                batch=batch,
-            )
+            # We do ODE when t is outside of [s_min, s_max]
+            if (
+                t_schedule[i] < t_min or t_schedule[i] >= t_max
+            ) or sampler_type == "ode":
+                v_t = self(
+                    z=z,
+                    t=t,
+                    pos=x,
+                    bond_index=bond_index,
+                    edge_attr=edge_attr,
+                    node_attr=node_attr,
+                    batch=batch,
+                )
+                x = x + delta_t * v_t
 
-            if self.path_type == "pred_x1":
-                s = t + dt
-
-                v_t = center_of_mass(v_t + x, batch=batch)
-                x1_hat = rmsd_align(v_t, x, batch=batch)
-
-                x = dt / (1 - t) * x1_hat + (1 - s) / (1 - t) * x
-
+            # Stochastic sampling
             else:
-                x = x + dt * v_t
+                # delta_hat = gamma*delta_t
+                delta_hat = gamma * (1 - t_schedule[i])
+                t_prev_int = t_schedule[i] - delta_hat
+                t_prev = t_prev_int.repeat(x.size(0))
+                t_prev = unsqueeze_like(t_prev, x)
+                """linear noise"""
+                sig_t_sq = t_schedule[i] ** 2
+                sig_t_prev_sq = t_prev_int**2
+                mean = torch.zeros_like(x)
+                noise = torch.normal(mean=mean, std=std)
+                noise = center_of_mass(noise, batch=batch)
+                x_prev = (
+                    x
+                    + torch.sqrt(torch.abs(sig_t_sq - sig_t_prev_sq))
+                    * noise
+                    * delta_hat
+                )  # quadratic + linear decay
+
+                v_t_prev = self(
+                    z=z,
+                    t=t_prev,
+                    pos=x_prev,
+                    bond_index=bond_index,
+                    edge_attr=edge_attr,
+                    node_attr=node_attr,
+                    batch=batch,
+                )
+                # update step
+                x = x_prev + v_t_prev * (delta_t + delta_hat)
 
         if self.parity_switch == "post_hoc":
-            # perform parity switch
-            x = self.switch_parity_of_pos(
-                x, chiral_index, chiral_nbr_index, chiral_tag, batch
-            )
-
-        return x
-
-    @torch.no_grad()
-    def sdeint(
-        self,
-        z,
-        bond_index,
-        batch,
-        node_attr=None,
-        edge_attr=None,
-        chiral_index=None,
-        chiral_nbr_index=None,
-        chiral_tag=None,
-        n_timesteps: int = 20,
-        eps: float = 0.0,
-        start_time=0.0001,
-        end_time=0.9999,
-        x0: Optional[Tensor] = None,
-    ):
-        t_schedule = torch.linspace(
-            start_time, end_time, steps=n_timesteps + 1, device=self.device
-        )
-        num_atoms = z.size(0)
-
-        x = self.sample_base_dist(
-            size=(num_atoms, 3),
-            edge_index=bond_index,
-            batch=batch,
-            chiral_index=chiral_index,
-            chiral_nbr_index=chiral_nbr_index,
-            chiral_tag=chiral_tag,
-        )
-
-        x = center_of_mass(x, batch=batch)
-        x0 = x.clone()
-
-        n = t_schedule.size(0) - 1
-        for i in range(n):
-            t = t_schedule[i].repeat(x.size(0))
-            t = unsqueeze_like(t, x)
-            dt = self._compute_delta_t(t_schedule, t=i)
-
-            v_t = self(
-                z=z,
-                t=t,
-                pos=x,
-                bond_index=bond_index,
-                edge_attr=edge_attr,
-                node_attr=node_attr,
-                batch=batch,
-            )
-
-            dW = torch.randn_like(x)
-            dW = center_of_mass(dW, batch=batch)
-            dW = torch.sqrt(2 * dt * eps) * dW
-
-            if self.path_type == "pred_x1":
-                s = t + dt
-
-                v_t = center_of_mass(v_t + x, batch=batch)
-                x1_hat = rmsd_align(v_t, x, batch=batch)
-
-                s_t = self.compute_s_from_x1(t=t, x1=x1_hat, x0=x0, x=x)
-                s_t = center_of_mass(s_t, batch=batch)
-                s_t = 0.5 * self.sigma**2 * s_t
-
-                x = dt / (1 - t) * x1_hat + (1 - s) / (1 - t) * x
-                x = x + eps * s_t * dt + self.sigma_t(t) * dW
-
-            else:
-                s_t = self.compute_s_from_v(t=t, v=v_t, x0=x0, x=x)
-                s_t = center_of_mass(s_t, batch=batch)
-                s_t = 0.5 * self.sigma**2 * s_t
-                x = x + dt * (v_t + eps * s_t)
-                x = x + self.sigma_t(t) * dW
-
-        if self.parity_switch == "post_hoc":
-            # perform parity switch
             x = self.switch_parity_of_pos(
                 x, chiral_index, chiral_nbr_index, chiral_tag, batch
             )

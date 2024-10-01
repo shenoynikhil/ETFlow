@@ -1,5 +1,5 @@
 # task name for logging
-task_name: flow-qm9/base
+task_name: flow/drugs-so3
 
 # unique seed for experiment reproducibility
 seed: 42
@@ -12,12 +12,12 @@ datamodule_args:
         data_dir: processed/
         use_ogb_feat: true
 
-    train_indices_path: QM9/train_indices.npy
-    val_indices_path: QM9/val_indices.npy
+    train_indices_path: DRUGS/train_indices.npy
+    val_indices_path: DRUGS/val_indices.npy
 
     # dataloader args
     dataloader_args:
-        batch_size: 128
+        batch_size: 64
         num_workers: 4
         pin_memory: false
         persistent_workers: true
@@ -44,25 +44,24 @@ model_args:
     distance_influence: both
     reduce_op: sum
     qk_norm: true
-    clip_during_norm: true
     so3_equivariant: true
-    output_layer_norm: true
+    clip_during_norm: true
 
     # flow matching specific
     sigma: 0.1
-    prior_type: gaussian
+    prior_type: harmonic
     interpolation_type: linear
 
     # optimizer args
     optimizer_type: AdamW
-    lr: 7.e-4
+    lr: 8.e-4
     weight_decay: 1.e-8
 
     # lr scheduler args
     lr_scheduler_type: CosineAnnealingWarmupRestarts
     first_cycle_steps: 375_000
     cycle_mult: 1.0
-    max_lr: 7.e-4
+    max_lr: 5.e-4
     min_lr: 1.e-8
     warmup_steps: 0
     gamma: 0.05
@@ -97,8 +96,8 @@ logger_args:
 # trainer
 trainer: Trainer
 trainer_args:
-    max_epochs: 500
-    devices: 4
-    limit_train_batches: 1500
+    max_epochs: 150
+    devices: 8
+    limit_train_batches: 5000
     strategy: ddp
     accelerator: auto

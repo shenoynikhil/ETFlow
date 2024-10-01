@@ -2,8 +2,6 @@ import json
 import os
 import pickle
 
-import fsspec
-import h5py
 import numpy as np
 
 CACHE_DIR = os.environ.get("CACHE_DIR", "~/.cache/data")
@@ -38,15 +36,6 @@ def load_npz(path):
     return uniques, inv_indices
 
 
-def load_hdf5(path):
-    fp = fsspec.open(path, "rb")
-    if hasattr(fp, "open"):
-        fp = fp.open()
-    file = h5py.File(fp)
-
-    return file
-
-
 def save_memmap(data, path, shape, dtype):
     f = np.memmap(path, mode="w+", dtype=dtype, shape=shape)
     f[:] = data
@@ -63,3 +52,13 @@ def get_local_cache() -> str:
     cache_dir = os.path.expanduser(os.path.expandvars(CACHE_DIR))
     os.makedirs(cache_dir, exist_ok=True)
     return cache_dir
+
+
+def get_base_data_dir() -> str:
+    # get the environment variable DATA_DIR
+    data_dir = os.environ.get("DATA_DIR", None)
+
+    if data_dir is None:
+        raise ValueError("DATA_DIR environment variable is not set.")
+
+    return data_dir

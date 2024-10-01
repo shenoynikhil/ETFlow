@@ -4,12 +4,11 @@ Preprocessing Script for GEOM dataset
 
 Usage
 ```bash
-python scripts/preprocess_geom_new.py \
+# make sure $DATA_DIR is set
+# processed files will be saved at $DATA_DIR/processed
+python scripts/prepare_train_data.py \
     --path /path/to/geom/rdkit-raw-folder \
-    --dest /path/to/geom/preprocessed
 ```
-By default the preprocessed data will be saved at
-`~/.cache/data/geom/preprocessed`.
 """
 import argparse
 import os
@@ -23,7 +22,7 @@ from tqdm import tqdm
 
 from etflow.commons import (
     get_atomic_number_and_charge,
-    get_local_cache,
+    get_base_data_dir,
     load_json,
     load_pkl,
 )
@@ -49,16 +48,14 @@ def read_mol(
         # maps the atom index to atoms in smiles string
         # replicates the exact mol structure i.e.
         # atom index and edge index
-        smiles = [
-            dm.to_smiles(
-                mol,
-                canonical=False,
-                explicit_hs=True,
-                with_atom_indices=True,
-                isomeric=True,
-            )
-            for mol in mols
-        ]
+        smiles_ = dm.to_smiles(
+            mols[0],
+            canonical=False,
+            explicit_hs=True,
+            with_atom_indices=True,
+            isomeric=True,
+        )
+        smiles = [smiles_] * len(confs)
 
         # atom specific information, positions, atomic numbers and charges
         positions: np.ndarray = np.concatenate(
@@ -108,7 +105,7 @@ def preprocess(raw_path: str, dest_folder_path: str) -> None:
     for partition in partitions:
         mols = load_json(osp.join(raw_path, f"summary_{partition}.json"))
 
-        for i, (mol_id, mol_dict) in tqdm(
+        for _, (mol_id, mol_dict) in tqdm(
             enumerate(mols.items()),
             total=len(mols),
             desc=f"Processing molecules of {partition}",
@@ -241,7 +238,6 @@ def save(
 
 
 if __name__ == "__main__":
-    # read path to hdf5 file of geom
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--path",
@@ -251,13 +247,6 @@ if __name__ == "__main__":
         help="Path to the geom dataset rdkit folder",
     )
     # destination path to store
-    parser.add_argument(
-        "--dest",
-        "-d",
-        type=str,
-        default=osp.join(get_local_cache(), "geom", "preprocessed"),
-        help="Destination path to store",
-    )
     args = parser.parse_args()
 
     # get path to raw file
@@ -265,7 +254,7 @@ if __name__ == "__main__":
     assert osp.exists(path), f"Path {path} not found"
 
     # get distanation path
-    dest = args.dest
+    dest = osp.join(get_base_data_dir(), "processed")
     os.makedirs(dest, exist_ok=True)
     log.info(f"Processed files will be saved at destination path: {dest}")
 

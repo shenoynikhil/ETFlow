@@ -4,8 +4,7 @@ import numpy as np
 import torch
 from torch.nn.functional import pad
 from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import degree, get_laplacian, to_dense_adj
-from torch_scatter import scatter
+from torch_geometric.utils import degree, get_laplacian, scatter, to_dense_adj
 
 from etflow.commons import extend_graph_order_radius
 
@@ -71,7 +70,6 @@ def extend_bond_index(
         cutoff=cutoff,
         max_num_neighbors=max_num_neighbors,
         extend_radius=True,
-        extend_order=False,
     )
     assert (
         bond_index.shape[1] == (edge_type > 0).sum().item()
