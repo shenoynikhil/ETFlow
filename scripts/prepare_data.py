@@ -6,8 +6,7 @@ Usage
 ```bash
 # make sure $DATA_DIR is set
 # processed files will be saved at $DATA_DIR/processed
-python scripts/prepare_train_data.py \
-    --path /path/to/geom/rdkit-raw-folder \
+python scripts/prepare_data.py -p /path/to/geom/rdkit-raw-folder
 ```
 """
 import argparse
