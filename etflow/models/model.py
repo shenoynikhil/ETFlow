@@ -17,7 +17,7 @@ from etflow.networks.torchmd_net import TorchMDDynamics
 
 
 class BaseFlow(BaseModel):
-    """Energy-Based Flow Matching Model (BaseFlow)"""
+    """LightningModule for Flow Matching"""
 
     __prior_types__ = ["gaussian", "harmonic"]
     __interpolation_types__ = ["linear", "gvp", "gvp_w_sigma", "gvp_squared"]
@@ -310,16 +310,12 @@ class BaseFlow(BaseModel):
 
     def sample_base_dist(
         self,
-        size=None,
-        edge_index=None,
-        batch=None,
-        smiles=None,
-        chiral_index=None,
-        chiral_nbr_index=None,
-        chiral_tag=None,
+        size: torch.Size,
+        edge_index: Optional[torch.Tensor] = None,
+        batch: Optional[torch.Tensor] = None,
+        smiles: Optional[str] = None,
     ):
         if self.prior_type == "gaussian":
-            assert size is not None
             x0 = torch.randn(size=size, device=self.device)
         elif self.prior_type == "harmonic":
             assert (edge_index is not None) and (batch is not None)
@@ -404,13 +400,10 @@ class BaseFlow(BaseModel):
         # sample base distribution, either from harmonic or gaussian
         # x0 is sampling distribution and not data distribution
         x0 = self.sample_base_dist(
-            size=pos.shape,
+            pos.shape,
             edge_index=bond_index,
             batch=batch,
             smiles=batched_data.get("smiles", None),
-            chiral_index=batched_data.get("chiral_index", None),
-            chiral_nbr_index=batched_data.get("chiral_nbr_index", None),
-            chiral_tag=batched_data.get("chiral_tag", None),
         )
 
         # sample time steps equal to number of molecules in a batch
