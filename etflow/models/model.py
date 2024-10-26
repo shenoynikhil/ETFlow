@@ -21,7 +21,7 @@ class BaseFlow(BaseModel):
 
     __prior_types__ = ["gaussian", "harmonic"]
     __interpolation_types__ = ["linear", "gvp", "gvp_w_sigma", "gvp_squared"]
-    __path_types__ = ["standard", "cond_ot_path", "pred_x1"]
+    __path_types__ = ["standard", "cond_ot_path"]
 
     def __init__(
         self,
@@ -233,34 +233,6 @@ class BaseFlow(BaseModel):
     def sigma_dot_t(self, t):
         return self.sigma * 0.5 * (1 - 2 * t) / torch.sqrt(t * (1 - t))
 
-    def lambda_t(self, t):
-        return self.sigma_dot_t(t) - (
-            (self.sigma_t(t) * self.alpha_dot_t(t)) / self.alpha_t(t)
-        )
-
-    def gamma_t(self, t):
-        return self.beta_dot_t(t) - (
-            (self.beta_t(t) * self.alpha_dot_t(t)) / self.alpha_t(t)
-        )
-
-    def compute_s_from_v(self, t, v, x0, x):
-        numerator = (
-            (self.alpha_dot_t(t) / self.alpha_t(t)) * x + self.gamma_t(t) * x0 - v
-        )
-
-        denominator = self.lambda_t(t) * self.sigma_t(t)
-        return numerator / denominator
-
-    def compute_v_from_s(self, t, s, x0, x):
-        return (
-            (self.alpha_dot_t(t) / self.alpha_t(t)) * x
-            + self.gamma_t(t) * x0
-            - self.lambda_t(t) * self.sigma_t(t) * s
-        )
-
-    def compute_s_from_x1(self, t, x1, x0, x):
-        return (1 / (self.sigma_t(t) ** 2)) * (self.interpolate(x0, x1, t) - x)
-
     def sample_conditional_pt(
         self, x0: Tensor, x1: Tensor, t: Tensor, batch: Tensor, return_eps: bool = False
     ):
@@ -309,8 +281,6 @@ class BaseFlow(BaseModel):
                 coef * (x1 - self.interpolate(x0=x0, x1=x1, t=t))
                 + self.sigma_dot_t(t) * eps
             )
-        elif self.path_type == "pred_x1":
-            u_t = x1
         else:
             u_t = self.dtIt(x0, x1, t) + self.sigma_dot_t(t) * eps
 
@@ -468,11 +438,6 @@ class BaseFlow(BaseModel):
             node_attr=node_attr,
             batch=batch,
         )
-
-        if self.path_type == "pred_x1":
-            # Model outputs (pred_pos - pos) so
-            # re-add the pos to get pred_pos
-            v_t = center_of_mass(v_t + x_t, batch=batch)
 
         # regress against vector field
         loss = batchwise_l2_loss(v_t, u_t, batch=batch, reduce="mean")

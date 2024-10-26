@@ -282,5 +282,7 @@ if __name__ == "__main__":
             "std": args.std,
         }
     )
+    # set dataframe path
+    dataframe_path = osp.join(DATA_DIR, "processed", "geom.csv")
 
-    main(config, checkpoint_path, args.dataframe_path, indices, counts)
+    main(config, checkpoint_path, dataframe_path, indices, counts)
