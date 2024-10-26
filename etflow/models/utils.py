@@ -1,10 +1,8 @@
 from typing import Tuple
 
-import numpy as np
 import torch
 from torch.nn.functional import pad
-from torch_geometric.nn import MessagePassing
-from torch_geometric.utils import degree, get_laplacian, scatter, to_dense_adj
+from torch_geometric.utils import get_laplacian, scatter, to_dense_adj
 
 from etflow.commons import extend_graph_order_radius
 
@@ -85,125 +83,6 @@ def extend_bond_index(
     return edge_index, edge_type
 
 
-# Defining some useful util functions.
-def expm1(x: torch.Tensor) -> torch.Tensor:
-    return torch.expm1(x)
-
-
-def polynomial_schedule(timesteps: int, s: float = 1e-4, power: int = 2) -> np.ndarray:
-    """Polynomial Schedule
-    A noise schedule based on a simple polynomial equation: 1 - x^power.
-    alpha_t = 1, when t = 0 and alpha_t = 0, when t = T.
-    """
-    steps = timesteps + 1
-    clip_value = 0.001
-    # sample T + 1 evenly spaced points from [0, T] (both inclusive)
-    x = np.linspace(0, steps, steps)
-    # compute polynomial at each point, shape: (T + 1, )
-    alphas2 = (1 - np.power(x / steps, power)) ** 2
-    # add 1 to the beginning of the array, shape: (T + 2, 1)
-    alphas2 = np.concatenate([np.ones(1), alphas2], axis=0)
-    # Compute alpha_{t|s} = alpha_t / alpha_s where s + 1 = t, shape: (T + 1, )
-    alphas_step = alphas2[1:] / alphas2[:-1]
-    # Clip values between 0.001 and 1.0
-    alphas_step = np.clip(alphas_step, a_min=clip_value, a_max=1.0)
-    # Compute cumulative product of alpha_{t|s} for each t, shape: (T, )
-    alphas2 = np.cumprod(alphas_step, axis=0)
-
-    # Not sure why this is done, TODO: check
-    precision = 1 - 2 * s
-    alphas2 = precision * alphas2 + s
-
-    return alphas2
-
-
-def cosine_beta_schedule(
-    timesteps: int, s: float = 0.008, raise_to_power: float = 1
-) -> np.ndarray:
-    """Cosine Schedule
-    Proposed in https://openreview.net/forum?id=-NEXDKk8gZ
-    """
-    steps = timesteps + 2
-    x = np.linspace(0, steps, steps)
-    alphas_cumprod = np.cos(((x / steps) + s) / (1 + s) * np.pi * 0.5) ** 2
-    alphas_cumprod = alphas_cumprod / alphas_cumprod[0]
-    betas = 1 - (alphas_cumprod[1:] / alphas_cumprod[:-1])
-    betas = np.clip(betas, a_min=0, a_max=0.999)
-    alphas = 1.0 - betas
-    alphas_cumprod = np.cumprod(alphas, axis=0)
-
-    if raise_to_power != 1:
-        alphas_cumprod = np.power(alphas_cumprod, raise_to_power)
-
-    return alphas_cumprod
-
-
-class PredefinedNoiseSchedule(torch.nn.Module):
-    """
-    Predefined noise schedule. Essentially creates a lookup array for
-    predefined (non-learned) noise schedules.
-    """
-
-    def __init__(self, noise_schedule: str, timesteps: int, precision: float):
-        super(PredefinedNoiseSchedule, self).__init__()
-        self.timesteps = timesteps
-
-        if noise_schedule == "cosine":
-            alphas2 = cosine_beta_schedule(timesteps)
-        elif "polynomial" in noise_schedule:
-            splits = noise_schedule.split("_")
-            assert len(splits) == 2
-            power = float(splits[1])
-            alphas2 = polynomial_schedule(timesteps, s=precision, power=power)
-        else:
-            raise ValueError(noise_schedule)
-
-        sigmas2 = 1 - alphas2
-
-        log_alphas2 = np.log(alphas2)
-        log_sigmas2 = np.log(sigmas2)
-
-        log_alphas2_to_sigmas2 = log_alphas2 - log_sigmas2
-
-        self.gamma = torch.nn.Parameter(
-            torch.from_numpy(-log_alphas2_to_sigmas2).float(), requires_grad=False
-        )
-
-    def forward(self, t: torch.Tensor) -> torch.Tensor:
-        t_int = torch.round(t * self.timesteps).long()
-        return self.gamma[t_int]
-
-
-def gaussian_KL_for_dimension(
-    q_mu: torch.Tensor,
-    q_sigma: torch.Tensor,
-    p_mu: torch.Tensor,
-    p_sigma: torch.Tensor,
-    d: torch.Tensor,
-    batch: torch.Tensor,
-):
-    """Computes the KL distance between two normal distributions.
-
-    Args:
-        q_mu: Mean of distribution q. (N, 3)
-        q_sigma: Standard deviation of distribution q. (B, 1)
-        p_mu: Mean of distribution p. (N, 3)
-        p_sigma: Standard deviation of distribution p. (B, 1)
-    Returns:
-        The KL distance, summed over all dimensions except the batch dim.
-    """
-    mu_norm2 = scatter(
-        torch.sum((q_mu - p_mu) ** 2, dim=1), batch, reduce="sum"
-    )  # (B, 1)
-    assert len(q_sigma.size()) == 1
-    assert len(p_sigma.size()) == 1
-    return (
-        d * torch.log(p_sigma / q_sigma)
-        + 0.5 * (d * q_sigma**2 + mu_norm2) / (p_sigma**2)
-        - 0.5 * d
-    )  # (B, 1)
-
-
 def unsqueeze_like(x: torch.Tensor, target: torch.Tensor):
     shape = (x.size(0), *([1] * (target.dim() - 1)))
     return x.view(shape)
@@ -213,43 +92,6 @@ def unsqueeze_like(x: torch.Tensor, target: torch.Tensor):
 Following code adapted from HarmonicFlow
 https://github.com/HannesStark/FlowSite/blob/main/utils/diffusion.py
 """
-
-
-class HarmonicPotential(MessagePassing):
-    def __init__(self, alpha=1, normalize=False):
-        super(HarmonicPotential, self).__init__()
-        self.alpha = alpha
-        self.normalize = normalize
-
-    def forward(self, x, edge_index, batch=None):
-        if batch is None:
-            batch = torch.zeros(x.size(0)).to(x.device).long()
-
-        # multiple by 0.5 since undirected edges
-        energy = 0.5 * self.propagate(edge_index, x=x)
-
-        # normalize
-        if self.normalize:
-            # divide by 2 since edge index is undirected and we
-            # take account double counting
-            node_degree = 0.5 * degree(edge_index[0], num_nodes=x.size(0))
-            energy = (1 / node_degree) * energy
-
-        energy = 0.5 * self.alpha * scatter(energy, index=batch)
-        return energy.view(-1, 1)
-
-    def message(self, x_i, x_j):
-        return torch.norm(x_i - x_j, p=2, dim=-1) ** 2
-
-    def aggregate(
-        self,
-        x,
-        index,
-    ):
-        return scatter(x, index, dim=-1)
-
-    def update(self, inputs):
-        return inputs
 
 
 class HarmonicSampler:
