@@ -71,42 +71,6 @@ class Scalar(OutputModel):
         return self.output_network(x)
 
 
-class EquivariantScalar(OutputModel):
-    def __init__(
-        self,
-        hidden_channels,
-        activation="silu",
-        allow_prior_model=True,
-        reduce_op="sum",
-    ):
-        super(EquivariantScalar, self).__init__(
-            allow_prior_model=allow_prior_model, reduce_op=reduce_op
-        )
-        self.output_network = nn.ModuleList(
-            [
-                GatedEquivariantBlock(
-                    hidden_channels,
-                    hidden_channels // 2,
-                    activation=activation,
-                    scalar_activation=True,
-                ),
-                GatedEquivariantBlock(hidden_channels // 2, 1, activation=activation),
-            ]
-        )
-
-        self.reset_parameters()
-
-    def reset_parameters(self):
-        for layer in self.output_network:
-            layer.reset_parameters()
-
-    def pre_reduce(self, x, v, z, pos, batch):
-        for layer in self.output_network:
-            x, v = layer(x, v)
-        # include v in output to make sure all parameters have a gradient
-        return x, v
-
-
 class EquivariantVectorOutput(OutputModel):
     def __init__(
         self,
