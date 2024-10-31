@@ -1,5 +1,5 @@
 # ET-Flow: Equivariant Flow Matching for Molecular Conformer Generation
-Implementation of [Equivariant Flow Matching for Molecule Conformer Generation]() by M Hassan, N Shenoy, J Lee, H Stark, S Thaler and D Beaini.
+Implementation of [Equivariant Flow Matching for Molecule Conformer Generation](https://arxiv.org/abs/2410.22388) by M Hassan, N Shenoy, J Lee, H Stark, S Thaler and D Beaini.
 
 ET-Flow is a state-of-the-art generative model for generating small molecule conformations using equivariant transformers and flow matching.
 
@@ -86,4 +86,14 @@ Our codebase is built using the following open-source contributions,
 For further questions, feel free to raise an issue.
 
 ### Citation
-TODO!
+```
+@misc{hassan2024etflowequivariantflowmatchingmolecular,
+      title={ET-Flow: Equivariant Flow-Matching for Molecular Conformer Generation}, 
+      author={Majdi Hassan and Nikhil Shenoy and Jungyoon Lee and Hannes Stark and Stephan Thaler and Dominique Beaini},
+      year={2024},
+      eprint={2410.22388},
+      archivePrefix={arXiv},
+      primaryClass={q-bio.QM},
+      url={https://arxiv.org/abs/2410.22388}, 
+}
+```
