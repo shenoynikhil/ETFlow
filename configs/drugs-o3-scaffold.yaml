@@ -1,0 +1,104 @@
+# task name for logging
+task_name: flow/drugs-o3-scaffold
+
+# unique seed for experiment reproducibility
+seed: 42
+
+# data config
+datamodule: BaseDataModule
+datamodule_args:
+    dataset: EuclideanDataset
+    dataset_args:
+        data_dir: processed/
+        use_ogb_feat: true
+
+    train_indices_path: DRUGS/scaffold_train_indices.npy
+    val_indices_path: DRUGS/scaffold_val_indices.npy
+
+    # dataloader args
+    dataloader_args:
+        batch_size: 64
+        num_workers: 4
+        pin_memory: false
+        persistent_workers: true
+
+# model config
+model: BaseFlow
+model_args:
+    # network args
+    network_type: TorchMDDynamics
+    hidden_channels: 160
+    num_layers: 20
+    num_rbf: 64
+    rbf_type: expnorm
+    trainable_rbf: true
+    activation: silu
+    neighbor_embedding: true
+    cutoff_lower: 0.0
+    cutoff_upper: 10.0
+    max_z: 100
+    node_attr_dim: 10
+    edge_attr_dim: 1
+    attn_activation: silu
+    num_heads: 8
+    distance_influence: both
+    reduce_op: sum
+    qk_norm: true
+    so3_equivariant: false
+    clip_during_norm: true
+    parity_switch: post_hoc
+
+    # flow matching specific
+    sigma: 0.1
+    prior_type: harmonic
+    interpolation_type: linear
+
+    # optimizer args
+    optimizer_type: AdamW
+    lr: 8.e-4
+    weight_decay: 1.e-8
+
+    # lr scheduler args
+    lr_scheduler_type: CosineAnnealingWarmupRestarts
+    first_cycle_steps: 375_000
+    cycle_mult: 1.0
+    max_lr: 5.e-4
+    min_lr: 1.e-8
+    warmup_steps: 0
+    gamma: 0.05
+    last_epoch: -1
+    lr_scheduler_monitor: val/loss
+    lr_scheduler_interval: step
+    lr_scheduler_frequency: 1
+
+# callbacks
+callbacks:
+    -   callback: ModelCheckpoint
+        callback_args:
+            dirpath: './checkpoint'
+            monitor: val/loss
+            mode: min
+            save_last: true
+            every_n_epochs: 1
+            save_top_k: 3
+
+    -   callback: LearningRateMonitor
+        callback_args:
+            log_momentum: false
+            logging_interval: null
+
+
+# logger
+logger: WandbLogger
+logger_args:
+    project: Energy-Aware-MCG
+    entity: doms-lab
+
+# trainer
+trainer: Trainer
+trainer_args:
+    max_epochs: 150
+    devices: 8
+    limit_train_batches: 5000
+    strategy: ddp
+    accelerator: auto

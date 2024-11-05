@@ -113,81 +113,49 @@ class CovMatEvaluator(object):
 
         self.print_fn = print_fn
 
-    def __call__(self, packed_data_list, start_idx=0, mcf_samples: bool = False):
+    def __call__(self, packed_data_list, start_idx=0):
         rmsd_results = {}
         jobs = []
         true_mols = {}
         gen_mols = {}
-        if mcf_samples:
-            smiles_list = packed_data_list["smiles"]
-            gt_mols_list = packed_data_list["ground_truth"]
-            gen_mols_list = packed_data_list["model_samples"]
+        for data in packed_data_list:
+            if "pos_gen" not in data or "pos_ref" not in data:
+                log.info("skipping due to missing pos_gen or pos_ref")
+                continue
+            if self.filter_disconnected and ("." in data["smiles"]):
+                log.info("skipping due to disconnected molecule")
+                continue
 
-            for i, smiles in enumerate(smiles_list):
-                gt_mols_i = gt_mols_list[i]
-                gen_mols_i = gen_mols_list[i]
+            num_atoms = data["pos_gen"].shape[1]
+            if isinstance(data["pos_gen"], torch.Tensor):
+                data["pos_gen"] = data["pos_gen"].cpu().numpy()
 
-                num_true = len(gt_mols_i)
-                num_gen = num_true * self.ratio
+            smiles = data["smiles"]
+            mol = dm.to_mol(smiles, remove_hs=False, ordered=True)
+            data["pos_ref"] = data["pos_ref"].reshape(-1, num_atoms, 3)
+            data["pos_gen"] = data["pos_gen"].reshape(-1, num_atoms, 3)
 
-                if len(gen_mols_i) < num_gen:
-                    log.info(
-                        "skipping due to insufficient number of generated conformers"
-                    )
-                    continue
+            num_true = data["pos_ref"].shape[0]
+            num_gen = num_true * self.ratio
+            if data["pos_gen"].shape[0] < num_gen:
+                log.info("skipping due to insufficient number of generated conformers")
+                continue
+            data["pos_gen"] = data["pos_gen"][:num_gen]
 
-                true_mols[smiles] = gt_mols_i
-                gen_mols[smiles] = gen_mols_i[:num_gen]
+            true_mols[smiles] = [
+                set_rdmol_positions(mol, data["pos_ref"][i]) for i in range(num_true)
+            ]
+            gen_mols[smiles] = [
+                set_rdmol_positions(mol, data["pos_gen"][i]) for i in range(num_gen)
+            ]
 
-                rmsd_results[smiles] = {
-                    "n_true": num_true,
-                    "n_model": num_gen,
-                    "rmsd": np.nan * np.ones((num_true, num_gen)),
-                }
-                for i in range(num_true):
-                    jobs.append((smiles, i, true_mols[smiles][i], gen_mols[smiles]))
-        else:
-            for data in packed_data_list:
-                if "pos_gen" not in data or "pos_ref" not in data:
-                    log.info("skipping due to missing pos_gen or pos_ref")
-                    continue
-                if self.filter_disconnected and ("." in data["smiles"]):
-                    log.info("skipping due to disconnected molecule")
-                    continue
-
-                num_atoms = data["pos_gen"].shape[1]
-                if isinstance(data["pos_gen"], torch.Tensor):
-                    data["pos_gen"] = data["pos_gen"].cpu().numpy()
-
-                smiles = data["smiles"]
-                mol = dm.to_mol(smiles, remove_hs=False, ordered=True)
-                data["pos_ref"] = data["pos_ref"].reshape(-1, num_atoms, 3)
-                data["pos_gen"] = data["pos_gen"].reshape(-1, num_atoms, 3)
-
-                num_true = data["pos_ref"].shape[0]
-                num_gen = num_true * self.ratio
-                if data["pos_gen"].shape[0] < num_gen:
-                    log.info(
-                        "skipping due to insufficient number of generated conformers"
-                    )
-                    continue
-                data["pos_gen"] = data["pos_gen"][:num_gen]
-
-                true_mols[smiles] = [
-                    set_rdmol_positions(mol, data["pos_ref"][i])
-                    for i in range(num_true)
-                ]
-                gen_mols[smiles] = [
-                    set_rdmol_positions(mol, data["pos_gen"][i]) for i in range(num_gen)
-                ]
-
-                rmsd_results[smiles] = {
-                    "n_true": num_true,
-                    "n_model": num_gen,
-                    "rmsd": np.nan * np.ones((num_true, num_gen)),
-                }
-                for i in range(num_true):
-                    jobs.append((smiles, i, true_mols[smiles][i], gen_mols[smiles]))
+            rmsd_results[smiles] = {
+                "n_true": num_true,
+                "n_model": num_gen,
+                "rmsd": np.nan * np.ones((num_true, num_gen)),
+            }
+            for i in range(num_true):
+                jobs.append((smiles, i, true_mols[smiles][i], gen_mols[smiles]))
 
         # remove packed_data_list from memory
         del packed_data_list
