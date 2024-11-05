@@ -4,7 +4,7 @@ import torch
 from torch.nn.functional import pad
 from torch_geometric.utils import get_laplacian, scatter, to_dense_adj
 
-from etflow.commons import extend_graph_order_radius
+from etflow.commons.utils import extend_graph_order_radius
 
 
 def center_pos(pos, batch):

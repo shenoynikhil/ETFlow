@@ -6,7 +6,7 @@ from loguru import logger as log
 from torch.optim import Optimizer
 from torch.optim.lr_scheduler import LRScheduler
 
-from etflow.commons import Queue
+from etflow.commons.utils import Queue
 from etflow.schedulers import CosineAnnealingWarmupRestarts
 
 

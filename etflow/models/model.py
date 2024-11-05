@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 from torch import Tensor
 
-from etflow.commons import signed_volume
+from etflow.commons.utils import signed_volume
 from etflow.models.base import BaseModel
 from etflow.models.loss import batchwise_l2_loss
 from etflow.models.utils import (

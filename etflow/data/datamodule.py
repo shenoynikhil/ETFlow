@@ -12,7 +12,7 @@ from loguru import logger as log
 from torch.utils.data import Dataset, Subset
 from torch_geometric.loader import DataLoader
 
-from etflow.commons import get_base_data_dir
+from etflow.commons.io import get_base_data_dir
 
 
 class BaseDataModule(pl.LightningDataModule):
