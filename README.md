@@ -12,6 +12,11 @@ conda activate etflow
 python3 -m pip install -e .
 ```
 
+### Generating Conformations for Custom Smiles
+We have a sample notebook ([generate_confs.ipynb](generate_conformations.ipynb)) to generate conformations for custom smiles input. One needs to pass the config and corresponding checkpoint path in order as additional inputs.
+
+[WIP] We are currently adding support to load the model config and checkpoint without custom downloading.
+
 ### Preprocessing Data
 To pre-process the data, perform the following steps,
 1. Download the raw GEOM data and unzip the raw data using the following commands,
@@ -87,13 +92,13 @@ For further questions, feel free to raise an issue.
 
 ### Citation
 ```
-@misc{hassan2024etflowequivariantflowmatchingmolecular,
-      title={ET-Flow: Equivariant Flow-Matching for Molecular Conformer Generation}, 
+@misc{hassan2024etflow,
+      title={ET-Flow: Equivariant Flow-Matching for Molecular Conformer Generation},
       author={Majdi Hassan and Nikhil Shenoy and Jungyoon Lee and Hannes Stark and Stephan Thaler and Dominique Beaini},
       year={2024},
       eprint={2410.22388},
       archivePrefix={arXiv},
       primaryClass={q-bio.QM},
-      url={https://arxiv.org/abs/2410.22388}, 
+      url={https://arxiv.org/abs/2410.22388},
 }
 ```
