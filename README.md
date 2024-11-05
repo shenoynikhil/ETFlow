@@ -13,7 +13,7 @@ python3 -m pip install -e .
 ```
 
 ### Generating Conformations for Custom Smiles
-We have a sample notebook ([generate_confs.ipynb](generate_conformations.ipynb)) to generate conformations for custom smiles input. One needs to pass the config and corresponding checkpoint path in order as additional inputs.
+We have a sample notebook ([generate_confs.ipynb](generate_confs.ipynb)) to generate conformations for custom smiles input. One needs to pass the config and corresponding checkpoint path in order as additional inputs.
 
 [WIP] We are currently adding support to load the model config and checkpoint without custom downloading.
 
