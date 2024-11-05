@@ -1,6 +1,6 @@
 from torch_geometric.data import Data, Dataset
 
-from etflow.commons import MoleculeFeaturizer
+from etflow.commons.featurization import MoleculeFeaturizer
 
 from .geom import GEOM
 

@@ -1,12 +1,25 @@
 import numpy as np
 import torch
 from pytorch_lightning import seed_everything
-from torch_geometric.data import Batch
+from torch_geometric.data import Batch, Data
+
+from etflow.models.model import BaseFlow
 
 
 @torch.no_grad()
 def batched_sampling(
-    model, data, max_batch_size, num_samples, n_timesteps=50, seed=None, device="cpu"
+    model: BaseFlow,
+    data: Data,
+    max_batch_size: int = 1,
+    num_samples: int = 1,
+    n_timesteps=50,
+    seed: int = 42,
+    device: str = "cpu",
+    s_churn: float = 1.0,
+    t_min: float = 1.0,
+    t_max: float = 1.0,
+    std: float = 1.0,
+    sampler_type: str = "ode",
 ):
     if seed is not None:
         seed_everything(seed)
@@ -20,11 +33,22 @@ def batched_sampling(
         batched_data = Batch.from_data_list([data] * batch_size)
 
         # get one_hot, edge_index, batch
-        z, edge_index, batch, node_attr = (
+        (
+            z,
+            edge_index,
+            batch,
+            node_attr,
+            chiral_index,
+            chiral_nbr_index,
+            chiral_tag,
+        ) = (
             batched_data["atomic_numbers"].to(device),
             batched_data["edge_index"].to(device),
             batched_data["batch"].to(device),
             batched_data["node_attr"].to(device),
+            batched_data["chiral_index"].to(device),
+            batched_data["chiral_nbr_index"].to(device),
+            batched_data["chiral_tag"].to(device),
         )
 
         with torch.no_grad():
@@ -34,6 +58,14 @@ def batched_sampling(
                 batch=batch,
                 node_attr=node_attr,
                 n_timesteps=n_timesteps,
+                chiral_index=chiral_index,
+                chiral_nbr_index=chiral_nbr_index,
+                chiral_tag=chiral_tag,
+                s_churn=s_churn,
+                t_min=t_min,
+                t_max=t_max,
+                std=std,
+                sampler_type=sampler_type,
             )
 
         # reshape to (num_samples, num_atoms, 3) using batch

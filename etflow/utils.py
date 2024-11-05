@@ -16,9 +16,9 @@ from loguru import logger as log
 from torch.optim import Adam, AdamW, Optimizer
 from torch.optim.lr_scheduler import CosineAnnealingLR, LRScheduler, ReduceLROnPlateau
 
-from etflow.data import BaseDataModule
+from etflow.data.datamodule import BaseDataModule
 from etflow.data.dataset import EuclideanDataset
-from etflow.models import BaseFlow
+from etflow.models.model import BaseFlow
 from etflow.schedulers import CosineAnnealingWarmupRestarts
 
 

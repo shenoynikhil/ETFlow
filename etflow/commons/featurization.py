@@ -5,9 +5,17 @@ from typing import Callable, Tuple
 import datamol as dm
 import torch
 from datamol.types import Mol
+from rdkit import Chem
+from torch_geometric.data import Data
 
 from .covmat import build_conformer
 from .utils import atom_to_feature_vector, compute_edge_index, get_chiral_tensors
+
+
+def get_mol_from_smiles(smiles):
+    mol = Chem.MolFromSmiles(smiles)
+    mol = Chem.AddHs(mol)
+    return mol
 
 
 def cache_decorator(func: Callable):
@@ -119,3 +127,31 @@ class MoleculeFeaturizer:
         """Returns edge index and edge attributes for a given mol object."""
         edge_index, edge_attr = compute_edge_index(mol, with_edge_attr=use_edge_feat)
         return edge_index, edge_attr
+
+    def get_data_from_smiles(self, smiles: str) -> Data:
+        mol = get_mol_from_smiles(smiles)  # added hs
+        smiles_changed = dm.to_smiles(
+            mol,
+            canonical=False,
+            explicit_hs=True,
+            with_atom_indices=True,
+            isomeric=True,
+        )
+        node_attr = self.get_atom_features_from_mol(mol, True)
+        chiral_index, chiral_nbr_index, chiral_tag = self.get_chiral_centers_from_mol(
+            mol
+        )
+        edge_index, edge_attr = self.get_edge_index_from_mol(mol, False)
+        atomic_numbers = self.get_atomic_numbers_from_mol(mol)
+
+        graph = Data(
+            atomic_numbers=atomic_numbers,
+            smiles=smiles_changed,
+            edge_index=edge_index,
+            chiral_index=chiral_index,
+            chiral_nbr_index=chiral_nbr_index,
+            chiral_tag=chiral_tag,
+            node_attr=node_attr,
+            edge_attr=edge_attr,
+        )
+        return graph
