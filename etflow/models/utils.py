@@ -245,6 +245,10 @@ def find_rigid_alignment(A, B):
     U, S, V = torch.svd(H)
     # Rotation matrix
     R = V.mm(U.T)
+    # Ensure R is a proper rotation matrix
+    if torch.det(R) < 0:  # reflection
+        V[:, -1] *= -1  # flip the sign of the last column of V
+        R = V.mm(U.T)
     # Translation vector
     t = b_mean[None, :] - R.mm(a_mean[None, :].T).T
     t = t.T
