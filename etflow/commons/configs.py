@@ -10,6 +10,8 @@ import fsspec
 from tqdm import tqdm
 from typing_extensions import Literal
 
+CACHE = "~/.cache/etflow"
+
 
 def download_with_progress(url, destination, chunk_size=2**20):  # 1MB chunks
     """
@@ -53,7 +55,7 @@ class BaseConfigSchema(BaseModel):
 class CheckpointConfigSchema(BaseConfigSchema):
     type: str
     checkpoint_path: str
-    cache: Optional[str] = "cache"
+    cache: Optional[str] = CACHE
     _format: Literal[str] = ".ckpt"
 
     @validator("cache")
@@ -65,6 +67,7 @@ class CheckpointConfigSchema(BaseConfigSchema):
         return value
 
     def fetch_checkpoint(self) -> str:
+        self.create_cache()
         if not self.checkpoint_exists():
             download_with_progress(self.checkpoint_path, self.local_path)
         else:
@@ -78,11 +81,16 @@ class CheckpointConfigSchema(BaseConfigSchema):
     def checkpoint_exists(self) -> bool:
         return os.path.exists(self.local_path)
 
+    def cache_exists(self) -> bool:
+        return os.path.exists(self.cache)
+
+    def create_cache(self):
+        if not self.cache_exists():
+            os.makedirs(self.cache)
+
     def set_cache(self, cache: str):
         if not cache:
             return
-        if not os.path.exists(cache):
-            os.makedirs(cache)
         self.cache = cache
 
 

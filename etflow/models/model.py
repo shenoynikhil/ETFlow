@@ -195,6 +195,7 @@ class BaseFlow(BaseModel):
     def from_default(
         cls, model: str = "drugs-o3", device: str = "cuda", cache: Optional[str] = None
     ):
+        model = model.lower()
         if model not in CONFIG_DICT:
             raise ValueError(
                 f"Model config {model} not found. Available checkpoints are {CONFIG_DICT.keys()}"
