@@ -9,6 +9,7 @@ Usage
 python scripts/prepare_data.py -p /path/to/geom/rdkit-raw-folder
 ```
 """
+
 import argparse
 import os
 import os.path as osp
