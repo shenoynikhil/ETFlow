@@ -1,8 +1,15 @@
-from typing import Optional
+from copy import deepcopy
+from typing import Any, Dict, List, Optional, TypeVar
 
+import numpy as np
 import torch
+from pytorch_lightning import seed_everything
 from torch import Tensor
+from torch_geometric.data import Batch
 
+from etflow.commons.configs import CONFIG_DICT
+from etflow.commons.covmat import set_rdmol_positions
+from etflow.commons.featurization import MoleculeFeaturizer, get_mol_from_smiles
 from etflow.commons.utils import signed_volume
 from etflow.models.base import BaseModel
 from etflow.models.loss import batchwise_l2_loss
@@ -14,6 +21,10 @@ from etflow.models.utils import (
     unsqueeze_like,
 )
 from etflow.networks.torchmd_net import TorchMDDynamics
+
+__all__ = ["BaseFlow"]
+
+Config = TypeVar("Config", str, Dict[str, Any])
 
 
 class BaseFlow(BaseModel):
@@ -166,6 +177,51 @@ class BaseFlow(BaseModel):
 
         if prior_type == "harmonic":
             self.harmonic_sampler = HarmonicSampler(alpha=harmonic_alpha)
+
+    @classmethod
+    def from_config(cls, cfg: Config):
+        import yaml
+
+        from etflow.utils import instantiate_model
+
+        if isinstance(cfg, str):
+            cfg = yaml.safe_load(open(cfg))
+        if isinstance(cfg, dict):
+            return instantiate_model(cfg["model"], cfg["model_args"])
+        else:
+            raise ValueError("cfg should be a dictionary or a path to a yaml file")
+
+    @classmethod
+    def from_default(
+        cls, model: str = "drugs-o3", device: str = "cuda", cache: Optional[str] = None
+    ):
+        model = model.lower()
+        if model not in CONFIG_DICT:
+            raise ValueError(
+                f"Model config {model} not found. Available checkpoints are {CONFIG_DICT.keys()}"
+            )
+        else:
+            config = CONFIG_DICT.get(model, None)()
+            print(f"Loading {model} from config")
+            config.checkpoint_config.set_cache(cache)
+            checkpoint_path = config.checkpoint_config.fetch_checkpoint().local_path
+
+        found_device = get_device()
+        if device != found_device and device != "cpu":
+            print(f"Device {device} not found. Using {found_device} instead")
+            device = found_device
+
+        etflow_model = cls.from_config(config.model_dict())
+        checkpoint = torch.load(checkpoint_path, map_location=device)
+        if isinstance(checkpoint, dict):
+            if "state_dict" in checkpoint:
+                # Standard Lightning checkpoint
+                etflow_model.load_state_dict(checkpoint["state_dict"])
+            else:
+                # Plain state dict
+                etflow_model.load_state_dict(checkpoint)
+        etflow_model.eval()
+        return etflow_model
 
     def alpha_t(self, t):
         if self.interpolation_type == "linear":
@@ -539,3 +595,126 @@ class BaseFlow(BaseModel):
             )
 
         return x
+
+    @torch.no_grad()
+    def predict(
+        self,
+        smiles: List[str],
+        max_batch_size: int = 1,
+        num_samples: int = 1,
+        n_timesteps=50,
+        seed: int = 42,
+        device: str = "cpu",
+        s_churn: float = 1.0,
+        t_min: float = 1.0,
+        t_max: float = 1.0,
+        std: float = 1.0,
+        sampler_type: str = "ode",
+        as_mol: bool = False,
+    ):
+        if seed is not None:
+            seed_everything(seed)
+
+        def sample(
+            data,
+            max_batch_size,
+            num_samples,
+            n_timesteps,
+            device,
+            s_churn,
+            t_min,
+            t_max,
+            std,
+            sampler_type,
+        ):
+            sampled_pos = []
+
+            for batch_start in range(0, num_samples, max_batch_size):
+                # get batch_size
+                batch_size = min(max_batch_size, num_samples - batch_start)
+                # batch the data
+                batched_data = Batch.from_data_list([data] * batch_size)
+
+                # get one_hot, edge_index, batch
+                (
+                    z,
+                    edge_index,
+                    batch,
+                    node_attr,
+                    chiral_index,
+                    chiral_nbr_index,
+                    chiral_tag,
+                ) = (
+                    batched_data["atomic_numbers"].to(device),
+                    batched_data["edge_index"].to(device),
+                    batched_data["batch"].to(device),
+                    batched_data["node_attr"].to(device),
+                    batched_data["chiral_index"].to(device),
+                    batched_data["chiral_nbr_index"].to(device),
+                    batched_data["chiral_tag"].to(device),
+                )
+
+                with torch.no_grad():
+                    pos = self.sample(
+                        z=z,
+                        bond_index=edge_index,
+                        batch=batch,
+                        node_attr=node_attr,
+                        n_timesteps=n_timesteps,
+                        chiral_index=chiral_index,
+                        chiral_nbr_index=chiral_nbr_index,
+                        chiral_tag=chiral_tag,
+                        s_churn=s_churn,
+                        t_min=t_min,
+                        t_max=t_max,
+                        std=std,
+                        sampler_type=sampler_type,
+                    )
+
+                # reshape to (num_samples, num_atoms, 3) using batch
+                pos = pos.view(batch_size, -1, 3).cpu().detach().numpy()
+
+                # append to generated_positions
+                sampled_pos.append(pos)
+
+            # concatenate generated_positions
+            sampled_pos = np.concatenate(
+                sampled_pos, axis=0
+            )  # (num_samples, num_atoms, 3)
+
+            return sampled_pos
+
+        feat = MoleculeFeaturizer()
+        if not isinstance(smiles, list):
+            smiles = [smiles]
+
+        data = {}
+        for smile in smiles:
+            pos = sample(
+                feat.get_data_from_smiles(
+                    smile,
+                ),
+                max_batch_size,
+                num_samples,
+                n_timesteps,
+                device,
+                s_churn,
+                t_min,
+                t_max,
+                std,
+                sampler_type,
+            )
+            if as_mol:
+                mol = get_mol_from_smiles(smile)
+                set_rdmol_positions(mol, pos[0])
+                mols = []
+                for i in range(num_samples):
+                    copied_mol = deepcopy(mol)
+                    set_rdmol_positions(copied_mol, pos[i])
+                    mols.append(copied_mol)
+                data[smile] = mols
+        return data
+
+
+def get_device():
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")

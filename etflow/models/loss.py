@@ -1,4 +1,5 @@
 """Loss Functions"""
+
 from typing import Optional
 
 import torch
