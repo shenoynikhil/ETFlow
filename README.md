@@ -3,20 +3,12 @@ Implementation of [Equivariant Flow Matching for Molecule Conformer Generation](
 
 ET-Flow is a state-of-the-art generative model for generating small molecule conformations using equivariant transformers and flow matching.
 
-### Install Etflow
+### Install ET-flow
 We are now available on PyPI. Easily install the package using the following command:
 ```bash
 pip install etflow
 ```
 
-### Setup dev Environment
-Run the following commands to setup the environment:
-```bash
-conda env create -n etflow -f env.yml
-conda activate etflow
-# to install the etflow package
-python3 -m pip install -e .
-```
 
 ### Generating Conformations for Custom Smiles
 We have a sample notebook ([generate_confs.ipynb](generate_confs.ipynb)) to generate conformations for custom smiles input. One needs to pass the config and corresponding checkpoint path in order as additional inputs.
@@ -33,6 +25,15 @@ We currently support the following configurations and checkpoint:
 - `drugs-o3`
 - `qm9-o3`
 - `drugs-so3`
+
+### Setup Dev Environment
+Run the following commands to setup the environment:
+```bash
+conda env create -n etflow -f env.yml
+conda activate etflow
+# to install the etflow package
+python3 -m pip install -e .
+```
 
 ### Preprocessing Data
 To pre-process the data, perform the following steps,
