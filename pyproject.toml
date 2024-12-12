@@ -14,6 +14,11 @@ authors = [
   { name = "Stephan Thaler", email = "stephan@valencelabs.com" },
   { name = "Dominique Beaini", email = "dominique@valencelabs.com" }
 ]
+dependencies = [
+    "tqdm",
+    # todo
+]
+
 
 [tool.setuptools]
 include-package-data = true

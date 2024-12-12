@@ -9,6 +9,7 @@ python etflow/eval.py \
     -n 50
 ```
 """
+
 import argparse
 import datetime
 import os
@@ -18,13 +19,13 @@ import time
 import numpy as np
 import pandas as pd
 import torch
+import wandb
 
 # from lightning import seed_everything
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
-import wandb
 from etflow.commons import get_base_data_dir, load_pkl, save_pkl
 from etflow.models import BaseFlow
 from etflow.utils import instantiate_dataset, instantiate_model, read_yaml

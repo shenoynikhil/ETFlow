@@ -11,6 +11,7 @@ python etflow/eval_xl.py \
     --nsteps 50
 ```
 """
+
 import argparse
 import datetime
 import os
@@ -19,12 +20,12 @@ import os.path as osp
 import numpy as np
 import pandas as pd
 import torch
+import wandb
 from lightning import seed_everything
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
-import wandb
 from etflow.commons import MoleculeFeaturizer, get_base_data_dir, load_pkl, save_pkl
 from etflow.utils import instantiate_model, read_yaml
 

@@ -3,12 +3,10 @@ import torch
 from pytorch_lightning import seed_everything
 from torch_geometric.data import Batch, Data
 
-from etflow.models.model import BaseFlow
-
 
 @torch.no_grad()
 def batched_sampling(
-    model: BaseFlow,
+    model,
     data: Data,
     max_batch_size: int = 1,
     num_samples: int = 1,
