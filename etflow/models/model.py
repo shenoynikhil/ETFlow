@@ -7,7 +7,7 @@ from torch import Tensor
 from torch_geometric.data import Batch
 
 from etflow.commons.configs import CONFIG_DICT
-from etflow.commons.covmat import set_rdmol_positions
+from etflow.commons.covmat import set_multiple_rdmol_positions
 from etflow.commons.featurization import MoleculeFeaturizer, get_mol_from_smiles
 from etflow.commons.utils import signed_volume
 from etflow.models.base import BaseModel
@@ -705,7 +705,7 @@ class BaseFlow(BaseModel):
             )
             if as_mol:
                 mol = get_mol_from_smiles(smile)
-                data[smile] = set_rdmol_positions(mol, pos)
+                data[smile] = set_multiple_rdmol_positions(mol, pos)
             else:
                 data[smile] = pos
         return data

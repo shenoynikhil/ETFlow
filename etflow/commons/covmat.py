@@ -29,7 +29,7 @@ def build_conformer(pos):
     return conformer
 
 
-def set_rdmol_positions(rdkit_mol, pos):
+def set_multiple_rdmol_positions(rdkit_mol, pos):
     """
     Args:
         rdkit_mol:  An `rdkit.Chem.rdchem.Mol` object.
@@ -39,6 +39,18 @@ def set_rdmol_positions(rdkit_mol, pos):
     for conf_pos in pos:
         conformer = build_conformer(conf_pos)
         mol.AddConformer(conformer)
+    return mol
+
+
+def set_rdmol_positions(rdkit_mol, pos):
+    """
+    Args:
+        rdkit_mol:  An `rdkit.Chem.rdchem.Mol` object.
+        pos: (N_atoms, 3)
+    """
+    mol = deepcopy(rdkit_mol)
+    conformer = build_conformer(pos)
+    mol.AddConformer(conformer)
     return mol
 
 
