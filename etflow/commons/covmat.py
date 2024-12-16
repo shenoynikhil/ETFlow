@@ -33,7 +33,7 @@ def set_rdmol_positions(rdkit_mol, pos):
     """
     Args:
         rdkit_mol:  An `rdkit.Chem.rdchem.Mol` object.
-        pos: (n, 3, N_atoms)
+        pos: (n, N_atoms, 3)
     """
     mol = deepcopy(rdkit_mol)
     for conf_pos in pos:
