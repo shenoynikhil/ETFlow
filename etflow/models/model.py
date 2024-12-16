@@ -1,4 +1,3 @@
-from copy import deepcopy
 from typing import Any, Dict, List, Optional, TypeVar
 
 import numpy as np
@@ -706,13 +705,9 @@ class BaseFlow(BaseModel):
             )
             if as_mol:
                 mol = get_mol_from_smiles(smile)
-                set_rdmol_positions(mol, pos[0])
-                mols = []
-                for i in range(num_samples):
-                    copied_mol = deepcopy(mol)
-                    set_rdmol_positions(copied_mol, pos[i])
-                    mols.append(copied_mol)
-                data[smile] = mols
+                data[smile] = set_rdmol_positions(mol, pos)
+            else:
+                data[smile] = pos
         return data
 
 
