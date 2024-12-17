@@ -38,7 +38,7 @@ def set_multiple_rdmol_positions(rdkit_mol, pos):
     mol = deepcopy(rdkit_mol)
     for conf_pos in pos:
         conformer = build_conformer(conf_pos)
-        mol.AddConformer(conformer)
+        mol.AddConformer(conformer, assignId=True)
     return mol
 
 
