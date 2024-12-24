@@ -11,7 +11,7 @@
 <img src="./img/etflow.png" width="600">
 </div>
 
-Implementation of [Equivariant Flow Matching for Molecule Conformer Generation](https://arxiv.org/abs/2410.22388) by M Hassan, N Shenoy, J Lee, H Stark, S Thaler and D Beaini.
+Implementation of [Equivariant Flow Matching for Molecule Conformer Generation](https://arxiv.org/abs/2410.22388) by M Hassan, N Shenoy, J Lee, H Stark, S Thaler and D Beaini. The paper was accepted at [NeurIPS 2024](https://neurips.cc/virtual/2024/poster/94522).
 
 ET-Flow is a state-of-the-art generative model for generating small molecule conformations using equivariant transformers and flow matching.
 
