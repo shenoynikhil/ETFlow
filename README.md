@@ -1,19 +1,27 @@
-# ET-Flow: Equivariant Flow Matching for Molecular Conformer Generation
+<div align="center">
+
+# ET-Flow
+<a href="https://pytorch.org/get-started/locally/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white"></a>
+<a href="https://pytorchlightning.ai/"><img alt="Lightning" src="https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white"></a>
+[![Paper](http://img.shields.io/badge/paper-arxiv.2412.10966-B31B1B.svg)](https://arxiv.org/abs/2412.10966)
+[![Data DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14478459.svg)](https://doi.org/10.48550/arXiv.2410.22388)
+[![NeurIPs 2024](https://img.shields.io/badge/any_text-you_like-blue)](https://neurips.cc/virtual/2024/poster/94522)
+
+<img src="./img/etflow.png" width="600">
+</div>
+
 Implementation of [Equivariant Flow Matching for Molecule Conformer Generation](https://arxiv.org/abs/2410.22388) by M Hassan, N Shenoy, J Lee, H Stark, S Thaler and D Beaini.
 
 ET-Flow is a state-of-the-art generative model for generating small molecule conformations using equivariant transformers and flow matching.
 
-### Install ET-flow
+### Install ET-Flow
 We are now available on PyPI. Easily install the package using the following command:
 ```bash
 pip install etflow
 ```
 
-
 ### Generating Conformations for Custom Smiles
-We have a sample notebook ([generate_confs.ipynb](generate_confs.ipynb)) to generate conformations for custom smiles input. One needs to pass the config and corresponding checkpoint path in order as additional inputs.
-
-We have added support to load the model config and checkpoint with automatic download and caching. See ([tutorial.ipynb](tutorial.ipynb)) or use the following snippet to load the model and generate conformations for custom smiles input.
+**Option 1**: Load the model config and checkpoint with automatic download and caching. See ([tutorial.ipynb](tutorial.ipynb)) or use the following snippet to load the model and generate conformations for custom smiles input.
 
 ```python
 from etflow import BaseFlow
@@ -26,6 +34,8 @@ We currently support the following configurations and checkpoint:
 - `qm9-o3`
 - `drugs-so3`
 
+**Option 2**: Load the model config, download checkpoints from the following zenodo [link](https://zenodo.org/records/14226681) and load it manually into the model config. We have a sample notebook ([generate_confs.ipynb](generate_confs.ipynb)) to generate conformations for custom smiles input. One needs to pass the config and corresponding checkpoint path in order as additional inputs.
+
 ### Setup Dev Environment
 Run the following commands to setup the environment:
 ```bash
@@ -34,6 +44,7 @@ conda activate etflow
 # to install the etflow package
 python3 -m pip install -e .
 ```
+
 
 ### Preprocessing Data
 To pre-process the data, perform the following steps,
@@ -51,7 +62,7 @@ export DATA_DIR=</path_to_data>
 python scripts/prepare_data.py -p /path/to/geom/rdkit-raw-folder
 ```
 
-3. Download the splits from the zenodo link (`https://zenodo.org/records/13870058`). Once these files are downloaded, extract the zip files to the respective folders inside `$DATA_DIR`,
+3. Download the splits from the [zenodo link](`https://zenodo.org/records/13870058`). Once these files are downloaded, extract the zip files to the respective folders inside `$DATA_DIR`,
 
 ```bash
 unzip QM9.zip -d $DATA_DIR
