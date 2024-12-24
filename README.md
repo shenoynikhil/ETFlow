@@ -1,30 +1,57 @@
-# ET-Flow: Equivariant Flow Matching for Molecular Conformer Generation
-Implementation of [Equivariant Flow Matching for Molecule Conformer Generation](https://arxiv.org/abs/2410.22388) by M Hassan, N Shenoy, J Lee, H Stark, S Thaler and D Beaini.
+<div align="center">
+
+# ET-Flow
+<a href="https://pytorch.org/get-started/locally/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white"></a>
+<a href="https://pytorchlightning.ai/"><img alt="Lightning" src="https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white"></a><br>
+[![Conference](http://img.shields.io/badge/NeurIPS-2024-4b44ce.svg)](https://neurips.cc/virtual/2024/poster/94522)
+[![Data DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14478459.svg)](https://doi.org/10.48550/arXiv.2410.22388)
+<br>
+[![Checkpoints]( https://img.shields.io/badge/Checkpoints-6AA84F)](https://zenodo.org/records/14226681)
+
+<img src="./img/etflow.png" width="600">
+</div>
+
+Implementation of [Equivariant Flow Matching for Molecule Conformer Generation](https://arxiv.org/abs/2410.22388) by M Hassan, N Shenoy, J Lee, H Stark, S Thaler and D Beaini. The paper was accepted at [NeurIPS 2024](https://neurips.cc/virtual/2024/poster/94522).
 
 ET-Flow is a state-of-the-art generative model for generating small molecule conformations using equivariant transformers and flow matching.
 
-### Install ET-flow
+### Install ET-Flow
 We are now available on PyPI. Easily install the package using the following command:
+
 ```bash
 pip install etflow
 ```
 
+*Note*: If there are issues with `pytorch_cluster`/`pytorch_geometric` and `pytorch`, it might be easier to install pytorch first and then the `etflow` package via pip.
 
 ### Generating Conformations for Custom Smiles
-We have a sample notebook ([generate_confs.ipynb](generate_confs.ipynb)) to generate conformations for custom smiles input. One needs to pass the config and corresponding checkpoint path in order as additional inputs.
-
-We have added support to load the model config and checkpoint with automatic download and caching. See ([tutorial.ipynb](tutorial.ipynb)) or use the following snippet to load the model and generate conformations for custom smiles input.
+**Option 1**: Load the model config and checkpoint with automatic download and caching. See ([tutorial.ipynb](tutorial.ipynb)) or use the following snippet to load the model and generate conformations for custom smiles input.
 
 ```python
 from etflow import BaseFlow
-model=BaseFlow.from_default(model="drugs-o3")
-model.predict(['CN1C=NC2=C1C(=O)N(C(=O)N2C)C'], num_samples=3, as_mol=True)
+model = BaseFlow.from_default(model="drugs-o3")
+
+# prediction 3 conformations for one molecule given by smiles
+smiles = 'CN1C=NC2=C1C(=O)N(C(=O)N2C)C'
+output = model.predict([smiles], num_samples=3, as_mol=True)
+mol = output[smiles] # rdkit mol object
+
+# if we want just positions as numpy array
+output = model.predict([smiles], num_samples=3)
+output[smiles] # np.ndarray with shape (num_samples, num_atoms, 3)
+
+# for prediction on more than 1 smiles
+smiles_1 = ...
+smiles_2 = ...
+output = model.predict([smiles_1, smiles_2], num_samples=3, as_mol=True)
 ```
 
 We currently support the following configurations and checkpoint:
 - `drugs-o3`
 - `qm9-o3`
 - `drugs-so3`
+
+**Option 2**: Load the model config, download checkpoints from the following zenodo [link](https://zenodo.org/records/14226681) and load it manually into the model config. We have a sample notebook ([generate_confs.ipynb](generate_confs.ipynb)) to generate conformations for custom smiles input. One needs to pass the config and corresponding checkpoint path in order as additional inputs.
 
 ### Setup Dev Environment
 Run the following commands to setup the environment:
@@ -34,6 +61,7 @@ conda activate etflow
 # to install the etflow package
 python3 -m pip install -e .
 ```
+
 
 ### Preprocessing Data
 To pre-process the data, perform the following steps,
@@ -51,7 +79,7 @@ export DATA_DIR=</path_to_data>
 python scripts/prepare_data.py -p /path/to/geom/rdkit-raw-folder
 ```
 
-3. Download the splits from the zenodo link (`https://zenodo.org/records/13870058`). Once these files are downloaded, extract the zip files to the respective folders inside `$DATA_DIR`,
+3. Download the splits from the [zenodo link](`https://zenodo.org/records/13870058`). Once these files are downloaded, extract the zip files to the respective folders inside `$DATA_DIR`,
 
 ```bash
 unzip QM9.zip -d $DATA_DIR
