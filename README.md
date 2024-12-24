@@ -24,8 +24,21 @@ pip install etflow
 
 ```python
 from etflow import BaseFlow
-model=BaseFlow.from_default(model="drugs-o3")
-model.predict(['CN1C=NC2=C1C(=O)N(C(=O)N2C)C'], num_samples=3, as_mol=True)
+model = BaseFlow.from_default(model="drugs-o3")
+
+# prediction 3 conformations for one molecule given by smiles
+smiles = 'CN1C=NC2=C1C(=O)N(C(=O)N2C)C'
+output = model.predict([smiles], num_samples=3, as_mol=True)
+mol = output[smiles] # rdkit mol object
+
+# if we want just positions as numpy array
+output = model.predict([smiles], num_samples=3)
+output[smiles] # np.ndarray with shape (num_samples, num_atoms, 3)
+
+# for prediction on more than 1 smiles
+smiles_1 = ...
+smiles_2 = ...
+output = model.predict([smiles_1, smiles_2], num_samples=3, as_mol=True)
 ```
 
 We currently support the following configurations and checkpoint:
