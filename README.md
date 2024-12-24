@@ -2,10 +2,9 @@
 
 # ET-Flow
 <a href="https://pytorch.org/get-started/locally/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white"></a>
-<a href="https://pytorchlightning.ai/"><img alt="Lightning" src="https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white"></a>
+<a href="https://pytorchlightning.ai/"><img alt="Lightning" src="https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white"></a><br>
 [![Paper](http://img.shields.io/badge/paper-arxiv.2412.10966-B31B1B.svg)](https://arxiv.org/abs/2412.10966)
 [![Data DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14478459.svg)](https://doi.org/10.48550/arXiv.2410.22388)
-[![NeurIPs 2024](https://img.shields.io/badge/any_text-you_like-blue)](https://neurips.cc/virtual/2024/poster/94522)
 
 <img src="./img/etflow.png" width="600">
 </div>
