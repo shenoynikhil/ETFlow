@@ -17,9 +17,12 @@ ET-Flow is a state-of-the-art generative model for generating small molecule con
 
 ### Install ET-Flow
 We are now available on PyPI. Easily install the package using the following command:
+
 ```bash
 pip install etflow
 ```
+
+*Note*: If there are issues with `pytorch_cluster`/`pytorch_geometric` and `pytorch`, it might be easier to install pytorch first and then the `etflow` package via pip.
 
 ### Generating Conformations for Custom Smiles
 **Option 1**: Load the model config and checkpoint with automatic download and caching. See ([tutorial.ipynb](tutorial.ipynb)) or use the following snippet to load the model and generate conformations for custom smiles input.
