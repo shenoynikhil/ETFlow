@@ -1,240 +1,226 @@
 """
-Preprocessing Script for GEOM dataset
-=====================================
+Script to process GEOM dataset into individual PyG data files
+===========================================================
 
-Usage
-```bash
-# make sure $DATA_DIR is set
-# processed files will be saved at $DATA_DIR/processed
-python scripts/prepare_data.py -p /path/to/geom/rdkit-raw-folder
-```
+Usage:
+python prepare_data.py -p /path/to/geom/rdkit-raw-folder --output_dir /path/to/output --processed_splits_dir /path/to/splits
 """
 
 import argparse
-import os
-import os.path as osp
-from typing import Dict
+import numpy as np
+from pathlib import Path
+from typing import Dict, Optional
 
 import datamol as dm
-import numpy as np
-from loguru import logger as log
+import torch
+from torch_geometric.data import Data
 from tqdm import tqdm
+from loguru import logger as log
 
-from etflow.commons import (
-    get_atomic_number_and_charge,
-    get_base_data_dir,
-    load_json,
-    load_pkl,
-)
-
-TOTAL_NUM_MOLS = 437580
-TOTAL_ATOMS_UNIQUE_MOLS = 15904498  # only counting once per molecule
-TOTAL_NUM_ATOMS = 1656320500  # counting for all conformers
-TOTAL_NUM_CONFORMERS = 33078483
+from etflow.commons import load_pkl
 
 
-def read_mol(
-    mol_id: str,
-    mol_dict,
-    base_path: str,
-    partition: str,
-    pos_start_idx: int,
-) -> Dict[str, np.ndarray]:
+def process_test_mol(mols: list[dm.Mol], partition: str):
+    """Process a single test molecule into a relevant PyG data object."""
     try:
-        d = load_pkl(osp.join(base_path, mol_dict["pickle_path"]))
-        confs = d["conformers"]
+        mol = mols[0]
+        smiles = dm.to_smiles(
+            mol,
+            canonical=False,
+            explicit_hs=True,
+            with_atom_indices=True,
+            isomeric=True,
+        )
+
+        atomic_numbers = torch.tensor(
+            [atom.GetAtomicNum() for atom in mol.GetAtoms()],
+            dtype=torch.long
+        )
+        atomic_charges = torch.tensor(
+            [atom.GetFormalCharge() for atom in mol.GetAtoms()],
+            dtype=torch.long
+        )
+
+        # get conformer positions from mol.GetConformer().GetPositions()
+        pos = torch.tensor([
+            mol.GetConformer().GetPositions()
+            for mol in mols
+        ]).float()
+        data = Data(
+            atomic_numbers=atomic_numbers,
+            charges=atomic_charges,
+            pos=pos,
+            smiles=smiles,
+            subset=partition,
+        )
+        return data
+    except Exception as e:
+        log.warning(f"Skipping: {smiles} due to {e}")
+        return None
+
+
+def process_mol(
+    pkl_path: Path,
+    partition: str,
+    split: str,
+    keep_top_n: int = 30,
+) -> Optional[Data]:
+    """Process a single molecule with all its conformers into one PyG Data object."""
+    try:
+        # Load molecule data
+        mol_dict = load_pkl(pkl_path)
+        confs = mol_dict["conformers"]
         mols = [conf["rd_mol"] for conf in confs]
 
-        # maps the atom index to atoms in smiles string
-        # replicates the exact mol structure i.e.
-        # atom index and edge index
-        smiles_ = dm.to_smiles(
+        # Get SMILES with atom indices (use first mol as they're all same)
+        smiles = dm.to_smiles(
             mols[0],
             canonical=False,
             explicit_hs=True,
             with_atom_indices=True,
             isomeric=True,
         )
-        smiles = [smiles_] * len(confs)
 
-        # atom specific information, positions, atomic numbers and charges
-        positions: np.ndarray = np.concatenate(
-            [cf["rd_mol"].GetConformer().GetPositions() for cf in confs], 0
+        # Get chemical information (same for all conformers)
+        mol = mols[0]
+        atomic_numbers = torch.tensor(
+            [atom.GetAtomicNum() for atom in mol.GetAtoms()],
+            dtype=torch.long
         )
-        num_atoms, num_confs = mols[0].GetNumAtoms(), len(mols)
-        x: np.ndarray = np.concatenate(
-            [get_atomic_number_and_charge(mol) for mol in mols]
-        )
-        pos_index_range: np.ndarray = (
-            np.arange(
-                pos_start_idx, pos_start_idx + num_atoms * num_confs + 1, num_atoms
-            )
-            .repeat(2)[1:-1]
-            .reshape(-1, 2)
+        atomic_charges = torch.tensor(
+            [atom.GetFormalCharge() for atom in mol.GetAtoms()],
+            dtype=torch.long
         )
 
-        # # energy
-        energy = [cf["totalenergy"] for cf in confs]
+        # Sort conformers by Boltzmann weight if train/val split
+        if split in ["train", "val"]:
+            confs = sorted(confs, key=lambda x: x["boltzmannweight"], reverse=True)
+            confs = confs[:keep_top_n]  # Keep top 30 conformers
 
-        return dict(
-            # atom based
-            atomic_inputs=np.concatenate([x, positions], axis=-1, dtype=np.float32),
-            pos_index_range=pos_index_range,
-            num_atoms=num_atoms,
-            # energy
-            energy=energy,
-            # string based
+        # Collect conformer positions and energies
+        positions = []
+        energies = []
+        boltzmann_weights = []  # Also store the weights
+        
+        for conf in confs:
+            mol = conf["rd_mol"]
+            pos = torch.from_numpy(
+                mol.GetConformer().GetPositions()
+            ).float()
+            energy = torch.tensor([conf["totalenergy"]]).float()
+            weight = torch.tensor([conf["boltzmannweight"]]).float()
+            
+            positions.append(pos)
+            energies.append(energy)
+            boltzmann_weights.append(weight)
+
+        # Stack conformer data
+        positions = torch.stack(positions)  # [num_conformers, num_atoms, 3]
+        energies = torch.stack(energies)    # [num_conformers, 1]
+        boltzmann_weights = torch.stack(boltzmann_weights)  # [num_conformers, 1]
+
+        # Create single PyG Data object with all conformers
+        data = Data(
+            atomic_numbers=atomic_numbers,      # [num_atoms]
+            charges=atomic_charges,             # [num_atoms]
+            pos=positions,                      # [num_conformers, num_atoms, 3]
+            energy=energies,                    # [num_conformers, 1]
             smiles=smiles,
-            subset=partition,
-            num_confs=num_confs,
+            subset=partition
         )
+
+        return data
 
     except Exception as e:
-        print(f"Skipping: {mol_id} due to {e}")
+        log.warning(f"Skipping due to {e}")
         return None
 
 
-def preprocess(raw_path: str, dest_folder_path: str) -> None:
+def main(raw_path: Path, output_dir: Path, processed_splits_dir: Path) -> None:
     log.info(f"Reading files from {raw_path}")
+    
+    # Create output directories for each partition and split
     partitions = ["qm9", "drugs"]
-    processed_list = []
-    total_confs, total_atoms, total_atoms_mols, total_edges, total_mols = 0, 0, 0, 0, 0
-
-    memmap_dict = init_memmap(dest_folder_path)
-
     for partition in partitions:
-        mols = load_json(osp.join(raw_path, f"summary_{partition}.json"))
+        for split in ["train", "val", "test"]:
+            (output_dir / partition / split).mkdir(parents=True, exist_ok=True)
 
-        for _, (mol_id, mol_dict) in tqdm(
-            enumerate(mols.items()),
-            total=len(mols),
-            desc=f"Processing molecules of {partition}",
-        ):
-            res = read_mol(
-                mol_id,
-                mol_dict,
-                raw_path,
-                partition,
-                total_atoms,
-            )
+    # Statistics tracking
+    stats = {
+        partition: {split: {"mols": 0, "confs": 0} 
+                   for split in ["train", "val", "test"]}
+        for partition in partitions
+    }
+    skipped_mols = 0
 
-            if res is None:
+    # Process each partition
+    for partition in partitions:
+        log.info(f"Processing {partition} partition")
+        
+        # Load molecule summary
+        all_pkl_files = list((raw_path / partition).glob('*'))        
+        splits = np.load(
+            processed_splits_dir / partition.upper() / 'split.npy', allow_pickle=True
+        )
+        train_split_indices = splits[0]
+        val_split_indices = splits[1]
+
+        # train pickle paths
+        train_pkl_paths = [all_pkl_files[i] for i in train_split_indices]
+        val_pkl_paths = [all_pkl_files[i] for i in val_split_indices]
+        
+        # Process each molecule
+        for split, pkl_paths in zip(
+            ["train", "val"],
+            [train_pkl_paths, val_pkl_paths]
+        ):            
+            # Process each pickle file in the current split
+            for pkl_path in tqdm(pkl_paths, desc=f"Processing {partition} {split}"):
+                # Extract molecule ID from path
+                mol_id = pkl_path.stem
+
+                # skip if file already exists
+                if (output_dir / partition / split / f"{mol_id}.pt").exists():
+                    continue
+                
+                # Process molecule with all its conformers
+                data = process_mol(pkl_path, partition, split)
+
+                if data is None:
+                    skipped_mols += 1
+                    continue
+
+                # Save molecule data in appropriate split directory
+                save_path = output_dir / partition / split / f"{mol_id}.pt"
+                
+                # Save the PyG Data object
+                torch.save(data, save_path)
+                
+                # Update statistics
+                stats[partition][split]["mols"] += 1
+
+        # save test set data objects
+        test_mols: Dict[str, list[dm.Mol]] = load_pkl(processed_splits_dir / partition.upper() / "test_mols.pkl")
+        for test_mol_id, test_mol in test_mols.items():
+            data = process_test_mol(test_mol, partition)
+            if data is None:
+                skipped_mols += 1
                 continue
 
-            num_atoms = res.pop("num_atoms")
-            smiles = res.pop("smiles")
-            subset = res.pop("subset")
-            num_confs = res.pop("num_confs")
-            num_atoms_confs = num_atoms * num_confs
+            save_path = output_dir / partition / "test" / f"{test_mol_id}.pt"
+            torch.save(data, save_path)
 
-            index_dict = {
-                "atomic_inputs": [total_atoms, total_atoms + num_atoms_confs],
-                "pos_index_range": [total_confs, total_confs + num_confs],
-                "energy": [total_confs, total_confs + num_confs],
-            }
-
-            for key in res:
-                index_range = index_dict[key]
-                begin_idx, end_idx = index_range
-                if key == "edge_index":
-                    memmap_dict[key][:, begin_idx:end_idx] = res[key]
-                else:
-                    memmap_dict[key][begin_idx:end_idx] = res[key]
-
-            total_mols += 1
-            total_atoms += num_atoms_confs
-            total_confs += num_confs
-            total_atoms_mols += num_atoms
-
-            pkl_res = {"smiles": smiles, "subset": subset, "num_confs": num_confs}
-
-            processed_list.append(pkl_res)
-
-    log.info(
-        f"Processed: {total_mols} molecules, {total_atoms} atoms, "
-        f"{total_atoms_mols} atoms (unique mols), {total_edges} edges, "
-        f"{total_confs} conformers."
-    )
-
-    # save the memmaps
-    for key in memmap_dict:
-        memmap_dict[key].flush()
-
-    # save smiles and subsets
-    save(processed_list, dest_folder_path)
-
-
-def init_memmap(dest_folder_path):
-    log.info(f"Saving to {dest_folder_path}")
-
-    atomic_inputs_path = osp.join(dest_folder_path, "atomic_inputs.memmap")
-    pos_index_range_path = osp.join(dest_folder_path, "pos_index_range.memmap")
-    energy_path = osp.join(dest_folder_path, "energy.memmap")
-
-    return {
-        "atomic_inputs": np.memmap(
-            atomic_inputs_path, mode="w+", dtype=np.float32, shape=(TOTAL_NUM_ATOMS, 5)
-        ),
-        "pos_index_range": np.memmap(
-            pos_index_range_path,
-            mode="w+",
-            dtype=np.int32,
-            shape=(TOTAL_NUM_CONFORMERS, 2),
-        ),
-        "energy": np.memmap(
-            energy_path, mode="w+", dtype=np.float32, shape=(TOTAL_NUM_CONFORMERS,)
-        ),
-    }
-
-
-def save(
-    processed_list,
-    dest_folder_path: str,
-):
-    # save
-    log.info("Saving Smiles and Subset now!")
-
-    # dictionary for constant time lookup
-    smiles_dict = {}
-    subset_dict = {}
-
-    smiles_inv_indices = []
-    subset_inv_indices = []
-    smiles_index = 0
-    subset_index = 0
-    for x in tqdm(processed_list, desc="Processing Smiles and Subset"):
-        # filter the processed list removing NaNs
-        if x is None:
-            continue
-
-        smiles_list = x["smiles"]
-        subset = x["subset"]
-        n = x["num_confs"]
-
-        for smiles in smiles_list:
-            if smiles not in smiles_dict:
-                smiles_dict[smiles] = smiles_index
-                smiles_index += 1
-
-        if subset not in subset_dict:
-            subset_dict[subset] = subset_index
-            subset_index += 1
-
-        smiles_inv_indices.append(
-            [smiles_dict[smi] for smi in smiles_list]
-        )  # different index for each conformer
-        subset_inv_indices.append([subset_dict[subset]] * n)  # same index for subset
-
-    smiles = np.asarray(list(smiles_dict.keys()))
-    subset = np.asarray(list(subset_dict.keys()))
-    smiles_inv_indices = np.hstack(smiles_inv_indices).astype(int)
-    subset_inv_indices = np.hstack(subset_inv_indices).astype(int)
-
-    file_path = osp.join(dest_folder_path, "smiles.npz")
-    np.savez_compressed(file_path, uniques=smiles, inv_indices=smiles_inv_indices)
-
-    file_path = osp.join(dest_folder_path, "subset.npz")
-    np.savez_compressed(file_path, uniques=subset, inv_indices=subset_inv_indices)
+    # Log statistics
+    log.info("Processing complete:")
+    for partition in partitions:
+        log.info(f"\n{partition.upper()} statistics:")
+        for split in ["train", "val", "test"]:
+            split_stats = stats[partition][split]
+            log.info(
+                f"- {split}: {split_stats['mols']} molecules, "
+                f"{split_stats['confs']} conformers"
+            )
+    log.info(f"Skipped molecules: {skipped_mols}")
 
 
 if __name__ == "__main__":
@@ -242,21 +228,40 @@ if __name__ == "__main__":
     parser.add_argument(
         "--path",
         "-p",
-        type=str,
+        type=Path,
         required=True,
-        help="Path to the geom dataset rdkit folder",
+        help="Path to the geom dataset rdkit folder"
     )
-    # destination path to store
+    parser.add_argument(
+        "--output_dir",
+        "-o",
+        type=Path,
+        required=True,
+        help="Directory to save processed files"
+    )
+    parser.add_argument(
+        "--processed_splits_dir",
+        type=Path,
+        required=True,
+        help="Path to the processed splits directory. "
+            "Download the QM9 and DRUGS splits from zenodo and "
+            "extract them in a processed_splits directory"
+    )
+
     args = parser.parse_args()
 
-    # get path to raw file
-    path = args.path
-    assert osp.exists(path), f"Path {path} not found"
+    # Verify input paths exist
+    assert args.path.exists(), f"Path {args.path} not found"
+    assert args.processed_splits_dir.exists(), f"Splits path {args.processed_splits_dir} not found"
 
-    # get distanation path
-    dest = osp.join(get_base_data_dir(), "processed")
-    os.makedirs(dest, exist_ok=True)
-    log.info(f"Processed files will be saved at destination path: {dest}")
-
-    # preprocess
-    preprocess(path, dest)
+    # Verify the the splits are present
+    for partition in ["QM9", "DRUGS"]:
+        assert (args.processed_splits_dir / partition / "split.npy").exists(), f"Split not found in {partition}"
+        assert (args.processed_splits_dir / partition / "test_mols.pkl").exists(), f"Test split mols not found in {partition}"
+    
+    # Create output directory as output_dir/processed
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = args.output_dir / "processed"
+    
+    # Process the data
+    main(args.path, output_dir, args.processed_splits_dir)

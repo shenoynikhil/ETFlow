@@ -7,13 +7,8 @@ seed: 42
 # data config
 datamodule: BaseDataModule
 datamodule_args:
-    dataset: EuclideanDataset
-    dataset_args:
-        data_dir: processed/
-        use_ogb_feat: true
-
-    train_indices_path: DRUGS/train_indices.npy
-    val_indices_path: DRUGS/val_indices.npy
+    data_dir: data/processed/
+    partition: drugs
 
     # dataloader args
     dataloader_args:

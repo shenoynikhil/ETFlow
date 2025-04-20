@@ -7,15 +7,8 @@ seed: 42
 # data config
 datamodule: BaseDataModule
 datamodule_args:
-    dataset: EuclideanDataset
-    dataset_args:
-        data_dir: processed/
-        use_ogb_feat: true
-
-    train_indices_path: QM9/train_indices.npy
-    val_indices_path: QM9/val_indices.npy
-
-    # dataloader args
+    data_dir: data/processed/
+    partition: qm9
     dataloader_args:
         batch_size: 128
         num_workers: 4
