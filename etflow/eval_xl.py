@@ -17,11 +17,11 @@ import os.path as osp
 
 import numpy as np
 import torch
-import wandb
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
+import wandb
 from etflow.commons import MoleculeFeaturizer, get_base_data_dir, load_pkl, save_pkl
 from etflow.utils import instantiate_model, read_yaml
 
@@ -35,7 +35,9 @@ def get_data(mol):
     atomic_numbers = mol_feat.get_atomic_numbers_from_mol(mol)
     edge_index, _ = mol_feat.get_edge_index_from_mol(mol)
     node_attr = mol_feat.get_atom_features_from_mol(mol)
-    chiral_index, chiral_nbr_index, chiral_tag = mol_feat.get_chiral_centers_from_mol(mol)
+    chiral_index, chiral_nbr_index, chiral_tag = mol_feat.get_chiral_centers_from_mol(
+        mol
+    )
 
     return Data(
         atomic_numbers=atomic_numbers,
@@ -51,12 +53,7 @@ def get_datatime():
     return datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
-def main(
-    config: dict,
-    checkpoint_path: str,
-    output_dir: str,
-    debug: bool
-):
+def main(config: dict, checkpoint_path: str, output_dir: str, debug: bool):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log.info(f"Using {device} for sampling.")
 
@@ -156,7 +153,9 @@ def main(
             break
 
     if not debug and data_list:
-        save_pkl(os.path.join(output_dir, "generated_files.pkl"), list(data_list.values()))
+        save_pkl(
+            os.path.join(output_dir, "generated_files.pkl"), list(data_list.values())
+        )
 
 
 if __name__ == "__main__":
@@ -189,11 +188,13 @@ if __name__ == "__main__":
         )
 
         # log experiment info
-        wandb.log({
-            "config": args.config,
-            "checkpoint": args.checkpoint,
-            "debug": debug,
-        })
+        wandb.log(
+            {
+                "config": args.config,
+                "checkpoint": args.checkpoint,
+                "debug": debug,
+            }
+        )
 
     # get checkpoint path
     checkpoint_path = args.checkpoint

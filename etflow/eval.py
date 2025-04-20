@@ -18,18 +18,17 @@ import time
 
 import numpy as np
 import torch
-import wandb
 
 # from lightning import seed_everything
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
+import wandb
 from etflow.commons import save_pkl
 from etflow.data import EuclideanDataset
 from etflow.models import BaseFlow
 from etflow.utils import instantiate_model, read_yaml
-
 
 torch.set_float32_matmul_precision("high")
 
@@ -38,12 +37,7 @@ def get_datatime():
     return datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
-def main(
-    config: dict,
-    checkpoint_path: str,
-    output_dir: str,
-    debug: bool
-):
+def main(config: dict, checkpoint_path: str, output_dir: str, debug: bool):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log.info(f"Using {device} for sampling.")
 
@@ -51,7 +45,7 @@ def main(
     dataset = EuclideanDataset(
         data_dir=config["datamodule_args"]["data_dir"],
         partition=config["datamodule_args"]["partition"],
-        split="test"
+        split="test",
     )
     model = instantiate_model(config["model"], config["model_args"])
 
@@ -71,7 +65,7 @@ def main(
     num_test_samples = len(dataset)
     data_list = {}
     times = []
-    
+
     for idx in tqdm(range(num_test_samples)):
         data = dataset[idx]
 
@@ -81,7 +75,7 @@ def main(
 
         # calculate number of samples to generated
         pos_ref: torch.Tensor = torch.load(dataset.data_files[idx]).pos.cpu().numpy()
-        count = pos_ref.shape[0] # number of conformers
+        count = pos_ref.shape[0]  # number of conformers
         num_samples = 2 * count
         pos_gen = []
 
@@ -144,7 +138,9 @@ def main(
             break
 
     if not debug:
-        save_pkl(os.path.join(output_dir, "generated_files.pkl"), list(data_list.values()))
+        save_pkl(
+            os.path.join(output_dir, "generated_files.pkl"), list(data_list.values())
+        )
 
         # log time per conformer
         wandb.log({"time_per_conformer": np.mean(times)})
@@ -181,12 +177,14 @@ if __name__ == "__main__":
         )
 
         # log experiment info
-        wandb.log({
-            "config": args.config,
-            "checkpoint": args.checkpoint,
-            "dataset_type": config["datamodule_args"]["partition"],
-            "debug": debug,
-        })
+        wandb.log(
+            {
+                "config": args.config,
+                "checkpoint": args.checkpoint,
+                "dataset_type": config["datamodule_args"]["partition"],
+                "debug": debug,
+            }
+        )
 
     # get checkpoint path
     checkpoint_path = args.checkpoint

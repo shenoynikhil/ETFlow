@@ -6,11 +6,11 @@ from copy import deepcopy
 
 import numpy as np
 import torch
-import wandb
 from lightning.pytorch import seed_everything
 from loguru import logger as log
 from tqdm import tqdm
 
+import wandb
 from etflow.commons import (
     batched_sampling,
     build_conformer,

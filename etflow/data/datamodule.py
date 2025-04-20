@@ -3,8 +3,8 @@ Takes as input a torch Dataset class, performs splitting
 and returns dataloaders for train, val and test.
 """
 
-from typing import Dict
 from pathlib import Path
+from typing import Dict
 
 import lightning.pytorch as pl
 from torch_geometric.loader import DataLoader
@@ -32,13 +32,13 @@ class BaseDataModule(pl.LightningDataModule):
     def setup(self, stage: str = None):
         """Prepares data splits for dataloader"""
         # Create train and val datasets for the specified partition
-        print (self.data_dir)
+        print(self.data_dir)
         self.train_dataset = EuclideanDataset(
             data_dir=self.data_dir,
             partition=self.partition,
             split="train",
         )
-        
+
         self.val_dataset = EuclideanDataset(
             data_dir=self.data_dir,
             partition=self.partition,
@@ -52,7 +52,7 @@ class BaseDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         """Creates val dataloader"""
         return DataLoader(self.val_dataset, **self.dataloader_args)
-    
+
     def test_dataloader(self):
         """Creates test dataloader"""
         # Create test dataset for the specified partition
@@ -61,5 +61,5 @@ class BaseDataModule(pl.LightningDataModule):
             partition=self.partition,
             split="test",
         )
-        
+
         return DataLoader(self.test_dataset, **self.dataloader_args)
