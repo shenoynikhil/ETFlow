@@ -74,7 +74,8 @@ def main(config: dict, checkpoint_path: str, output_dir: str, debug: bool):
     model.eval()
 
     # max batch size
-    max_batch_size = config["eval_args"]["batch_size"]
+    eval_args = config.get("eval_args", {})
+    max_batch_size = eval_args.get("batch_size", 32)
 
     # load indices
     data_list = {}
@@ -129,7 +130,7 @@ def main(config: dict, checkpoint_path: str, output_dir: str, debug: bool):
                     chiral_index=chiral_index,
                     chiral_nbr_index=chiral_nbr_index,
                     chiral_tag=chiral_tag,
-                    **config["eval_args"]["sampler_args"],
+                    **eval_args.get("sampler_args", {}),
                 )
 
             # reshape to (num_samples, num_atoms, 3) using batch
