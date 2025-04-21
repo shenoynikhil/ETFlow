@@ -20,11 +20,10 @@ import torch
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
+from utils import instantiate_model, read_yaml
 
 import wandb
 from etflow.commons import MoleculeFeaturizer, get_base_data_dir, load_pkl, save_pkl
-
-from .utils import instantiate_model, read_yaml
 
 DATA_DIR = get_base_data_dir()
 torch.set_float32_matmul_precision("high")

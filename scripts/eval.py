@@ -23,13 +23,12 @@ import torch
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
+from utils import instantiate_model, read_yaml
 
 import wandb
 from etflow.commons import save_pkl
 from etflow.data import EuclideanDataset
 from etflow.models import BaseFlow
-
-from .utils import instantiate_model, read_yaml
 
 torch.set_float32_matmul_precision("high")
 

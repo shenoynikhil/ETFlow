@@ -4,10 +4,7 @@ import os.path as osp
 import torch
 from lightning.pytorch import seed_everything
 from loguru import logger as log
-
-from etflow.data.datamodule import BaseDataModule
-
-from .utils import (
+from utils import (
     instantiate_callbacks,
     instantiate_logger,
     instantiate_model,
@@ -16,6 +13,8 @@ from .utils import (
     read_yaml,
     setup_log_dir,
 )
+
+from etflow.data.datamodule import BaseDataModule
 
 torch.set_float32_matmul_precision("high")
 

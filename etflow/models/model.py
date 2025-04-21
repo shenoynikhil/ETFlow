@@ -601,7 +601,7 @@ class BaseFlow(BaseModel):
         smiles: List[str],
         max_batch_size: int = 1,
         num_samples: int = 1,
-        n_timesteps=50,
+        n_timesteps: int = 50,
         seed: int = 42,
         device: str = "cpu",
         s_churn: float = 1.0,
