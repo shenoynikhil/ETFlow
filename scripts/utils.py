@@ -152,21 +152,10 @@ def instantiate_dataset(dataset_type: str, dataset_args: dict) -> LightningDataM
 def instantiate_datamodule(
     datamodule_type: str, datamodule_args: dict
 ) -> BaseDataModule:
-    dataset = instantiate_dataset(
-        datamodule_args["dataset"], datamodule_args["dataset_args"]
-    )
-    dataloader_args = datamodule_args["dataloader_args"]
     if datamodule_type == "BaseDataModule":
-        datamodule = BaseDataModule(
-            dataset=dataset,
-            dataloader_args=dataloader_args,
-            train_indices_path=datamodule_args.get("train_indices_path", None),
-            val_indices_path=datamodule_args.get("val_indices_path", None),
-        )
+        return BaseDataModule(**datamodule_args)
     else:
         raise NotImplementedError
-
-    return datamodule
 
 
 def instantiate_trainer(

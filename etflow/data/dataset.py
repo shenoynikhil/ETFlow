@@ -1,8 +1,11 @@
+from pathlib import Path
+
+import numpy as np
+import torch
 from torch_geometric.data import Data, Dataset
 
 from etflow.commons.featurization import MoleculeFeaturizer
-
-from .geom import GEOM
+from etflow.commons.io import get_base_data_dir
 
 
 class EuclideanDataset(Dataset):
@@ -13,44 +16,71 @@ class EuclideanDataset(Dataset):
     ```python
     from etflow.data import EuclideanDataset
     # pass path to processed data_dir
-    dataset = EuclideanDataset(data_dir=<>)
+    dataset = EuclideanDataset(
+        data_dir="processed",
+        split="train",  # "train", "val", or "test"
+        partition="drugs",  # "drugs" or "qm9"
+    )
     ```
     """
 
     def __init__(
         self,
-        data_dir: str,
-        use_ogb_feat: bool = False,
-        use_edge_feat: bool = False,
+        data_dir: Path | None = None,
+        split: str = "train",
+        partition: str = "drugs",
     ):
         super().__init__()
-        # instantiate dataset
-        self.dataset = GEOM(data_dir=data_dir)
         self.mol_feat = MoleculeFeaturizer()
-        self.use_ogb_feat = use_ogb_feat
-        self.use_edge_feat = use_edge_feat
-        self.cache = {}
+
+        # Set up paths
+        if data_dir is None:
+            self.data_dir = Path(get_base_data_dir()) / "processed"
+        else:
+            self.data_dir = Path(data_dir)
+
+        # Set split and partition
+        self.split = split
+        self.partition = partition
+
+        # Find all data files for the specified partition and split
+        self.data_files = list((self.data_dir / partition.lower() / split).glob("*.pt"))
+
+        if len(self.data_files) == 0:
+            raise ValueError(
+                f"No data files found for partition {partition} and split {split}"
+            )
+
+        # Sort files for reproducibility
+        self.data_files.sort()
 
     def len(self):
-        return len(self.dataset)
+        return len(self.data_files)
 
     def get(self, idx):
-        data_bunch = self.dataset[idx]
+        # Load the data file
+        data_path = self.data_files[idx]
+        data = torch.load(data_path)
 
-        # get positions, atomic_numbers and smiles
-        atomic_numbers = data_bunch["atomic_numbers"]
-        pos = data_bunch["pos"]
-        smiles = data_bunch["smiles"]
+        # Get the molecule data
+        smiles = data.smiles
+        pos_confs = data.pos
+        atomic_numbers = data.atomic_numbers
 
-        # featurize molecule
-        node_attr = self.mol_feat.get_atom_features(smiles, self.use_ogb_feat)
+        # sample a random conformer
+        conf_idx = np.random.randint(0, pos_confs.shape[0])
+        pos = pos_confs[conf_idx]
+
+        # Featurize molecule
+        node_attr = self.mol_feat.get_atom_features(smiles)
         chiral_index, chiral_nbr_index, chiral_tag = self.mol_feat.get_chiral_centers(
             smiles
         )
-        edge_index, edge_attr = self.mol_feat.get_edge_index(smiles, self.use_edge_feat)
+        edge_index, edge_attr = self.mol_feat.get_edge_index(smiles, False)
         mol = self.mol_feat.get_mol_with_conformer(smiles, pos)
 
-        graph = Data(
+        # Create a new graph with additional features
+        return Data(
             pos=pos,
             atomic_numbers=atomic_numbers,
             smiles=smiles,
@@ -62,5 +92,3 @@ class EuclideanDataset(Dataset):
             node_attr=node_attr,
             edge_attr=edge_attr,
         )
-
-        return graph

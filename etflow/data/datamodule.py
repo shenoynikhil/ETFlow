@@ -3,17 +3,13 @@ Takes as input a torch Dataset class, performs splitting
 and returns dataloaders for train, val and test.
 """
 
-import os
-import random
-from typing import Optional
+from pathlib import Path
+from typing import Dict
 
 import lightning.pytorch as pl
-import numpy as np
-from loguru import logger as log
-from torch.utils.data import Dataset, Subset
 from torch_geometric.loader import DataLoader
 
-from etflow.commons.io import get_base_data_dir
+from .dataset import EuclideanDataset
 
 
 class BaseDataModule(pl.LightningDataModule):
@@ -21,49 +17,33 @@ class BaseDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        dataset: Optional[Dataset] = None,
-        dataloader_args: dict = {},
-        train_indices_path: Optional[str] = None,
-        val_indices_path: Optional[str] = None,
+        data_dir: Path | None = None,
+        partition: str = "drugs",
+        dataloader_args: Dict = {},
     ) -> None:
         super().__init__()
-        self.dataset = dataset
+        self.data_dir = data_dir
+        self.partition = partition
         self.dataloader_args = dataloader_args
 
-        self.train_indices_path = train_indices_path
-        self.val_indices_path = val_indices_path
-
     def __repr__(self) -> str:
-        return f"DataModule(dataset={self.dataset})"
+        return f"DataModule(partition={self.partition})"
 
     def setup(self, stage: str = None):
-        """Prepares data splits for dataloader
-        By default, splits data randomly into train, val and test, 80:10:10
-        """
-        # perform splits if train, val and test datasets are not passed
-        if self.train_indices_path is not None and self.val_indices_path is not None:
-            # update indices path by appending base data dir
-            base_data_dir = get_base_data_dir()
-            self.train_indices_path = os.path.join(
-                base_data_dir, self.train_indices_path
-            )
-            self.val_indices_path = os.path.join(base_data_dir, self.val_indices_path)
+        """Prepares data splits for dataloader"""
+        # Create train and val datasets for the specified partition
+        print(self.data_dir)
+        self.train_dataset = EuclideanDataset(
+            data_dir=self.data_dir,
+            partition=self.partition,
+            split="train",
+        )
 
-            self.train_indices = np.load(self.train_indices_path, allow_pickle=True)
-            self.val_indices = np.load(self.val_indices_path, allow_pickle=True)
-        else:
-            all_indices = list(range(len(self.dataset)))
-
-            log.info("Performing train, val, test split")
-            random.shuffle(all_indices)  # inplace shuffle
-            self.train_indices, self.val_indices = (
-                all_indices[: int(len(all_indices) * 0.8)],
-                all_indices[int(len(all_indices) * 0.8) : int(len(all_indices) * 0.9)],
-            )
-
-        # create datasets
-        self.train_dataset = Subset(self.dataset, self.train_indices)
-        self.val_dataset = Subset(self.dataset, self.val_indices)
+        self.val_dataset = EuclideanDataset(
+            data_dir=self.data_dir,
+            partition=self.partition,
+            split="val",
+        )
 
     def train_dataloader(self):
         """Creates train dataloader"""
@@ -72,3 +52,14 @@ class BaseDataModule(pl.LightningDataModule):
     def val_dataloader(self):
         """Creates val dataloader"""
         return DataLoader(self.val_dataset, **self.dataloader_args)
+
+    def test_dataloader(self):
+        """Creates test dataloader"""
+        # Create test dataset for the specified partition
+        self.test_dataset = EuclideanDataset(
+            data_dir=self.data_dir,
+            partition=self.partition,
+            split="test",
+        )
+
+        return DataLoader(self.test_dataset, **self.dataloader_args)

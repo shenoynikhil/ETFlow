@@ -4,7 +4,6 @@
 <a href="https://pytorch.org/get-started/locally/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white"></a>
 <a href="https://pytorchlightning.ai/"><img alt="Lightning" src="https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white"></a><br>
 [![Conference](http://img.shields.io/badge/NeurIPS-2024-4b44ce.svg)](https://neurips.cc/virtual/2024/poster/94522)
-[![Data DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.14478459.svg)](https://doi.org/10.48550/arXiv.2410.22388)
 <br>
 [![Checkpoints]( https://img.shields.io/badge/Checkpoints-6AA84F)](https://zenodo.org/records/14226681)
 
@@ -65,32 +64,38 @@ python3 -m pip install -e .
 
 ### Preprocessing Data
 To pre-process the data, perform the following steps,
-1. Download the raw GEOM data and unzip the raw data using the following commands,
+1. Download the raw GEOM and unzip the raw data using the following commands,
 
 ```bash
-wget https://dataverse.harvard.edu/api/access/datafile/4327252 -O <output_folder_path/rdkit_folder.tar>
-tar -zxvf <output_folder_path/rdkit_folder.tar>
+DATA_DIR=</path_to_data>
+wget https://dataverse.harvard.edu/api/access/datafile/4327252 -O $DATA_DIR/rdkit_folder.tar
+tar -zxvf $DATA_DIR/rdkit_folder.tar
 ```
 
-2. Process the data for `ET-Flow` training. First, set the `DATA_DIR` environment variable. All preprocessed data will be created inside this.
+For the splits and test mols, download the files from the [torsional diffusion](https://drive.google.com/drive/folders/1BBRpaAvvS2hTrH81mAE4WvyLIKMyhwN7?usp=drive_link) and extract them to the respective folders inside `$DATA_DIR`. Ideally it should look like the following (after extracting the zip files),
 
 ```bash
-export DATA_DIR=</path_to_data>
-python scripts/prepare_data.py -p /path/to/geom/rdkit-raw-folder
+$DATA_DIR/
+├── QM9/
+└── DRUGS/
+└── XL/
 ```
 
-3. Download the splits from the [zenodo link](`https://zenodo.org/records/13870058`). Once these files are downloaded, extract the zip files to the respective folders inside `$DATA_DIR`,
+Make sure to set the environment variable `DATA_DIR` to the path of the data directory with `export DATA_DIR=</path_to_data>`.
+
+2. Process the data for `ET-Flow` training. All preprocessed data will be created inside a `processed` folder inside this directory.
 
 ```bash
-unzip QM9.zip -d $DATA_DIR
-unzip DRUGS.zip -d $DATA_DIR
+python scripts/prepare_data.py -p $DATA_DIR/rdkit_folder
 ```
+
+This should create a `processed` folder inside `$DATA_DIR` with the preprocessed data.
 
 ### Training
 We provide our configs for training on the GEOM-DRUGS and the GEOM-QM9 datasets in various configurations. Run the following commands once datasets are preprocessed and the environment is set up:
 
 ```bash
-python etflow/train.py -c configs/drugs-base.yaml
+python scripts/train.py -c configs/drugs-base.yaml
 ```
 
 The following two configs from the `configs/` directory can be used for replicating paper results:
@@ -98,30 +103,25 @@ The following two configs from the `configs/` directory can be used for replicat
 - `qm9-base.yaml`: ET-Flow trained on GEOM-QM9 dataset
 
 ### Evaluation
-Before running eval with any checkpoint, create an evaluation csv (will be saved at `$DATA_DIR/processed/geom.csv`), using the following script,
-```
-python scripts/prepare_eval_csv.py -p /path/to/geom/rdkit-raw-folder
-```
-
 Evaluation happens in 2 steps as follows,
 
 1. Generating Conformations
 To run the evaluation on either GEOM or QM9 given a config and a checkpoint, run the following command,
 ```bash
 # here n: number of inference steps for flow matching
-python etflow/eval.py --config=<config-path> --checkpoint=<checkpoint-path> --dataset_type=qm9 --nsteps=50
+python scripts/eval.py --config=<config-path> --checkpoint=<checkpoint-path>
 ```
 
 To run the evaluation on GEOM-XL (a test-set containing much larger molecules), run the following command,
 ```bash
-python etflow/eval_xl.py --config=<config-path> --checkpoint=<checkpoint-path> --batch_size=16 --nsteps=50
+python scripts/eval_xl.py --config=<config-path> --checkpoint=<checkpoint-path>
 ```
 
 2. Evaluating Conformations with RMSD Metrics
 The above sample generation script should created a `generated_files.pkl` at the following path, `logs/samples/<config-path>/<data-time>/flow_nsteps_{value-passed-above}/generated_files.pkl`. With the given path, we can get the various RMSD metrics using,
 
 ```bash
-python etflow/eval_cov_mat.py --path=<path-to-generated-files.pkl> --num_workers=10
+python scripts/eval_cov_mat.py --path=<path-to-generated-files.pkl> --num_workers=10
 ```
 
 ### Loading a Pre-Trained Checkpoint

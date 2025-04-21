@@ -6,11 +6,12 @@ from copy import deepcopy
 
 import numpy as np
 import torch
-import wandb
 from lightning.pytorch import seed_everything
 from loguru import logger as log
 from tqdm import tqdm
+from utils import instantiate_model, read_yaml
 
+import wandb
 from etflow.commons import (
     batched_sampling,
     build_conformer,
@@ -18,7 +19,8 @@ from etflow.commons import (
     xtb_energy,
     xtb_optimize,
 )
-from etflow.utils import instantiate_dataset, instantiate_model, read_yaml
+from etflow.data import EuclideanDataset
+from etflow.models import BaseFlow
 
 torch.set_float32_matmul_precision("high")
 
@@ -158,11 +160,8 @@ def main(
     config: dict,
     checkpoint_path: str,
     xtb_path: str,
-    indices: np.ndarray,
-    counts: np.ndarray,
-    nsteps: int,
+    n_timesteps: int,
     max_batch_size: int = 512,
-    num_workers: int = 1,
     debug: bool = False,
     seed: int = 42,
 ):
@@ -170,18 +169,14 @@ def main(
     log.info(f"setting seed to {seed}")
     seed_everything(seed)
 
-    if cuda_available():
-        log.info("CUDA is available. Using GPU for sampling.")
-        device = torch.device("cuda")
-    else:
-        log.warning("CUDA is not available. Using CPU for sampling.")
-        device = torch.device("cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    log.info(f"Using {device} for sampling.")
 
     # instantiate datamodule and model
-    dataset = instantiate_dataset(
-        config["datamodule_args"]["dataset"], config["datamodule_args"]["dataset_args"]
+    dataset = EuclideanDataset(
+        partition=config["datamodule_args"]["partition"],
+        split="test",
     )
-
     model = instantiate_model(config["model"], config["model_args"])
 
     # load model weights
@@ -190,24 +185,27 @@ def main(
     model.load_state_dict(state_dict)
 
     # move to device
-    model = model.to(device)
+    model: BaseFlow = model.to(device)
     model = model.eval()
-
-    random_index = np.random.randint(low=0, high=len(indices), size=(100,))
 
     # load indices
     gt_props_list = []
     gen_props_list = []
 
-    for i, rand_idx in tqdm(enumerate(random_index), total=len(random_index)):
-        idx = indices[rand_idx]
+    # Get number of test samples
+    num_test_samples = len(dataset)
+    log.info(f"Will be generating samples for {num_test_samples} molecules.")
+
+    for idx in tqdm(range(num_test_samples)):
         data = dataset[idx]
 
         # get data for batch_size
         smiles = data.smiles
         log.info(f"Generating conformers for molecule: {smiles}")
 
-        count = counts[rand_idx]
+        # Get reference positions to determine number of conformers
+        pos_ref = torch.load(dataset.data_files[idx]).pos.cpu().numpy()
+        count = pos_ref.shape[0]  # number of conformers
 
         # calculate number of samples to generated
         num_samples = min(2 * count, 32)
@@ -219,7 +217,7 @@ def main(
             data=data,
             max_batch_size=max_batch_size,
             num_samples=num_samples,
-            n_timesteps=nsteps,
+            n_timesteps=n_timesteps,
             device=device,
         )
 
@@ -264,10 +262,8 @@ if __name__ == "__main__":
     parser.add_argument("--config", "-c", type=str, required=True)
     parser.add_argument("--checkpoint", "-k", type=str, required=True)
     parser.add_argument("--xtb_path", "-x", type=str, required=True)
-    parser.add_argument("--count_indices", "-i", type=str, required=True)
     parser.add_argument("--output_dir", "-o", type=str, required=False, default="logs/")
-    parser.add_argument("--nsteps", "-n", type=int, required=False, default=100)
-    parser.add_argument("--num_workers", "-w", type=int, required=False, default=1)
+    parser.add_argument("--n_timesteps", "-n", type=int, required=False, default=50)
     parser.add_argument("--debug", "-d", action="store_true")
     parser.add_argument("--seed", "-s", type=int, default=42, help="seed")
     args = parser.parse_args()
@@ -276,14 +272,12 @@ if __name__ == "__main__":
     debug = args.debug
     log.info(f"Debug mode: {debug}")
 
-    num_workers = args.num_workers
-
     xtb_path = args.xtb_path
     assert osp.exists(xtb_path), "xTB path does not exist."
 
     # get nsteps
-    nsteps = args.nsteps
-    log.info(f"Number of steps (if using Flow): {nsteps}")
+    n_timesteps = args.n_timesteps
+    log.info(f"Number of steps (if using Flow): {n_timesteps}")
 
     # read config
     config_path = args.config
@@ -315,30 +309,19 @@ if __name__ == "__main__":
     assert osp.exists(checkpoint_path), "Checkpoint path does not exist."
 
     # setup output directory for storing samples
-
     output_dir = osp.join(
         args.output_dir,
-        f"ensemble_prop/{task_name}/{get_datatime()}/flow_nsteps_{nsteps}/",
+        f"ensemble_prop/{task_name}/{get_datatime()}",
     )
 
     if not debug:
         os.makedirs(output_dir, exist_ok=True)
 
-    # load count indices path, indices for what smiles to use
-    count_indices_path = args.count_indices
-    assert osp.exists(count_indices_path), "Count indices path does not exist."
-    log.info(f"Loading count indices from: {count_indices_path}")
-    indices, counts = np.load(count_indices_path)
-    log.info("Will be generating samples for 100 random molecules.")
-
     main(
         config=config,
         checkpoint_path=checkpoint_path,
         xtb_path=xtb_path,
-        indices=indices,
-        counts=counts,
-        nsteps=nsteps,
-        num_workers=num_workers,
+        n_timesteps=n_timesteps,
         debug=debug,
         seed=args.seed,
     )

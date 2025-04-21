@@ -181,12 +181,10 @@ class BaseFlow(BaseModel):
     def from_config(cls, cfg: Config):
         import yaml
 
-        from etflow.utils import instantiate_model
-
         if isinstance(cfg, str):
             cfg = yaml.safe_load(open(cfg))
         if isinstance(cfg, dict):
-            return instantiate_model(cfg["model"], cfg["model_args"])
+            return cls(**cfg["model_args"])
         else:
             raise ValueError("cfg should be a dictionary or a path to a yaml file")
 
@@ -601,7 +599,7 @@ class BaseFlow(BaseModel):
         smiles: List[str],
         max_batch_size: int = 1,
         num_samples: int = 1,
-        n_timesteps=50,
+        n_timesteps: int = 50,
         seed: int = 42,
         device: str = "cpu",
         s_churn: float = 1.0,
