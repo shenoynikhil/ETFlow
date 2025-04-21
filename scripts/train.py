@@ -6,7 +6,8 @@ from lightning.pytorch import seed_everything
 from loguru import logger as log
 
 from etflow.data.datamodule import BaseDataModule
-from etflow.utils import (
+
+from .utils import (
     instantiate_callbacks,
     instantiate_logger,
     instantiate_model,

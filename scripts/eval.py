@@ -1,8 +1,8 @@
-"""Script to generate and evaluate samples on GEOM-XL from a trained diffusion model.
+"""Script to generate samples from a trained model.
 
 Usage
 ```bash
-python etflow/eval_xl.py \
+python etflow/eval.py \
     --config=</path/to/config> \
     --checkpoint=</path/to/checkpoint> \
     --output_dir=</path/to/output_dir> \
@@ -14,39 +14,24 @@ import argparse
 import datetime
 import os
 import os.path as osp
+import time
 
 import numpy as np
 import torch
+
+# from lightning import seed_everything
 from loguru import logger as log
 from torch_geometric.data import Batch, Data
 from tqdm import tqdm
 
 import wandb
-from etflow.commons import MoleculeFeaturizer, get_base_data_dir, load_pkl, save_pkl
-from etflow.utils import instantiate_model, read_yaml
+from etflow.commons import save_pkl
+from etflow.data import EuclideanDataset
+from etflow.models import BaseFlow
 
-DATA_DIR = get_base_data_dir()
+from .utils import instantiate_model, read_yaml
+
 torch.set_float32_matmul_precision("high")
-mol_feat = MoleculeFeaturizer()
-
-
-def get_data(mol):
-    """Convert mol object to Data object"""
-    atomic_numbers = mol_feat.get_atomic_numbers_from_mol(mol)
-    edge_index, _ = mol_feat.get_edge_index_from_mol(mol)
-    node_attr = mol_feat.get_atom_features_from_mol(mol)
-    chiral_index, chiral_nbr_index, chiral_tag = mol_feat.get_chiral_centers_from_mol(
-        mol
-    )
-
-    return Data(
-        atomic_numbers=atomic_numbers,
-        edge_index=edge_index,
-        node_attr=node_attr,
-        chiral_index=chiral_index,
-        chiral_nbr_index=chiral_nbr_index,
-        chiral_tag=chiral_tag,
-    )
 
 
 def get_datatime():
@@ -57,11 +42,12 @@ def main(config: dict, checkpoint_path: str, output_dir: str, debug: bool):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log.info(f"Using {device} for sampling.")
 
-    # load mols
-    mols_path = osp.join(DATA_DIR, "XL/test_mols.pkl")
-    mols = load_pkl(mols_path)
-
-    # instantiate model
+    # instantiate datamodule and model
+    dataset = EuclideanDataset(
+        data_dir=config["datamodule_args"]["data_dir"],
+        partition=config["datamodule_args"]["partition"],
+        split="test",
+    )
     model = instantiate_model(config["model"], config["model_args"])
 
     # load model weights
@@ -70,26 +56,28 @@ def main(config: dict, checkpoint_path: str, output_dir: str, debug: bool):
     model.load_state_dict(state_dict)
 
     # move to device
-    model = model.to(device)
+    model: BaseFlow = model.to(device)
     model.eval()
 
     # max batch size
     max_batch_size = config["eval_args"]["batch_size"]
 
     # load indices
+    num_test_samples = len(dataset)
     data_list = {}
+    times = []
 
-    smiles_list = list(mols.keys())
-    for _, smiles in tqdm(enumerate(smiles_list), total=len(smiles_list)):
+    for idx in tqdm(range(num_test_samples)):
+        data = dataset[idx]
+
         # get data for batch_size
+        smiles = data.smiles
         log.info(f"Generating conformers for molecule: {smiles}")
 
-        # get molecular graph
-        mol_obj = mols[smiles][0]
-        count = len(mols[smiles])
+        # calculate number of samples to generated
+        pos_ref: torch.Tensor = torch.load(dataset.data_files[idx]).pos.cpu().numpy()
+        count = pos_ref.shape[0]  # number of conformers
         num_samples = 2 * count
-        data = get_data(mol_obj)
-
         pos_gen = []
 
         for batch_start in range(0, num_samples, max_batch_size):
@@ -119,6 +107,7 @@ def main(config: dict, checkpoint_path: str, output_dir: str, debug: bool):
             )
 
             # get time-estimate
+            start = time.time()
             with torch.no_grad():
                 # generate samples
                 pos = model.sample(
@@ -131,31 +120,32 @@ def main(config: dict, checkpoint_path: str, output_dir: str, debug: bool):
                     chiral_tag=chiral_tag,
                     **config["eval_args"]["sampler_args"],
                 )
+            end = time.time()
+            times.append((end - start) / batch_size)  # store time per conformer
 
             # reshape to (num_samples, num_atoms, 3) using batch
             pos = pos.view(batch_size, -1, 3).cpu().detach().numpy()
+
+            # append to generated_positions
             pos_gen.append(pos)
 
-        # concatenate generated_positions
+        # concatenate generated_positions: (num_samples, num_atoms, 3)
         pos_gen = np.concatenate(pos_gen, axis=0)
 
-        # Get reference positions
-        gt_mol_list = mols[smiles]
-        pos_ref = []
-        for gt_mol in gt_mol_list:
-            pos_ref.append(gt_mol.GetConformer(0).GetPositions())
-        pos_ref = np.stack(pos_ref, axis=0)
-
         data_list[smiles] = Data(
-            smiles=smiles, pos_ref=pos_ref, rdmol=mol_obj, pos_gen=pos_gen
+            smiles=smiles, pos_ref=pos_ref, rdmol=data.mol, pos_gen=pos_gen
         )
         if debug:
             break
 
-    if not debug and data_list:
+    if not debug:
         save_pkl(
             os.path.join(output_dir, "generated_files.pkl"), list(data_list.values())
         )
+
+        # log time per conformer
+        wandb.log({"time_per_conformer": np.mean(times)})
+        save_pkl(os.path.join(output_dir, "times.pkl"), times)
 
 
 if __name__ == "__main__":
@@ -184,7 +174,7 @@ if __name__ == "__main__":
         wandb.init(
             project="Energy-Aware-MCG",
             entity="doms-lab",
-            name=f"(GEOM-XL) Sample Generation: {task_name}",
+            name=f"Sample Generation: {task_name}",
         )
 
         # log experiment info
@@ -192,6 +182,7 @@ if __name__ == "__main__":
             {
                 "config": args.config,
                 "checkpoint": args.checkpoint,
+                "dataset_type": config["datamodule_args"]["partition"],
                 "debug": debug,
             }
         )

@@ -90,7 +90,7 @@ unzip DRUGS.zip -d $DATA_DIR
 We provide our configs for training on the GEOM-DRUGS and the GEOM-QM9 datasets in various configurations. Run the following commands once datasets are preprocessed and the environment is set up:
 
 ```bash
-python etflow/train.py -c configs/drugs-base.yaml
+python scripts/train.py -c configs/drugs-base.yaml
 ```
 
 The following two configs from the `configs/` directory can be used for replicating paper results:
@@ -98,30 +98,25 @@ The following two configs from the `configs/` directory can be used for replicat
 - `qm9-base.yaml`: ET-Flow trained on GEOM-QM9 dataset
 
 ### Evaluation
-Before running eval with any checkpoint, create an evaluation csv (will be saved at `$DATA_DIR/processed/geom.csv`), using the following script,
-```
-python scripts/prepare_eval_csv.py -p /path/to/geom/rdkit-raw-folder
-```
-
 Evaluation happens in 2 steps as follows,
 
 1. Generating Conformations
 To run the evaluation on either GEOM or QM9 given a config and a checkpoint, run the following command,
 ```bash
 # here n: number of inference steps for flow matching
-python etflow/eval.py --config=<config-path> --checkpoint=<checkpoint-path> --dataset_type=qm9 --nsteps=50
+python scripts/eval.py --config=<config-path> --checkpoint=<checkpoint-path>
 ```
 
 To run the evaluation on GEOM-XL (a test-set containing much larger molecules), run the following command,
 ```bash
-python etflow/eval_xl.py --config=<config-path> --checkpoint=<checkpoint-path> --batch_size=16 --nsteps=50
+python scripts/eval_xl.py --config=<config-path> --checkpoint=<checkpoint-path>
 ```
 
 2. Evaluating Conformations with RMSD Metrics
 The above sample generation script should created a `generated_files.pkl` at the following path, `logs/samples/<config-path>/<data-time>/flow_nsteps_{value-passed-above}/generated_files.pkl`. With the given path, we can get the various RMSD metrics using,
 
 ```bash
-python etflow/eval_cov_mat.py --path=<path-to-generated-files.pkl> --num_workers=10
+python scripts/eval_cov_mat.py --path=<path-to-generated-files.pkl> --num_workers=10
 ```
 
 ### Loading a Pre-Trained Checkpoint

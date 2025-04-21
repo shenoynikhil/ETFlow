@@ -18,7 +18,8 @@ from etflow.commons import (
     xtb_energy,
     xtb_optimize,
 )
-from etflow.utils import instantiate_dataset, instantiate_model, read_yaml
+
+from .utils import instantiate_dataset, instantiate_model, read_yaml
 
 torch.set_float32_matmul_precision("high")
 
