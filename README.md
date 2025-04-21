@@ -65,26 +65,32 @@ python3 -m pip install -e .
 
 ### Preprocessing Data
 To pre-process the data, perform the following steps,
-1. Download the raw GEOM data and unzip the raw data using the following commands,
+1. Download the raw GEOM and unzip the raw data using the following commands,
 
 ```bash
-wget https://dataverse.harvard.edu/api/access/datafile/4327252 -O <output_folder_path/rdkit_folder.tar>
-tar -zxvf <output_folder_path/rdkit_folder.tar>
+DATA_DIR=</path_to_data>
+wget https://dataverse.harvard.edu/api/access/datafile/4327252 -O $DATA_DIR/rdkit_folder.tar
+tar -zxvf $DATA_DIR/rdkit_folder.tar
 ```
 
-2. Process the data for `ET-Flow` training. First, set the `DATA_DIR` environment variable. All preprocessed data will be created inside this.
+For the splits and test mols, download the files from the [torsional diffusion](https://drive.google.com/drive/folders/1BBRpaAvvS2hTrH81mAE4WvyLIKMyhwN7?usp=drive_link) and extract them to the respective folders inside `$DATA_DIR`. Ideally it should look like the following (after extracting the zip files),
 
 ```bash
-export DATA_DIR=</path_to_data>
-python scripts/prepare_data.py -p /path/to/geom/rdkit-raw-folder
+$DATA_DIR/
+├── QM9/
+└── DRUGS/
+└── XL/
 ```
 
-3. Download the splits from the [zenodo link](`https://zenodo.org/records/13870058`). Once these files are downloaded, extract the zip files to the respective folders inside `$DATA_DIR`,
+Make sure to set the environment variable `DATA_DIR` to the path of the data directory with `export DATA_DIR=</path_to_data>`.
+
+2. Process the data for `ET-Flow` training. All preprocessed data will be created inside a `processed` folder inside this directory.
 
 ```bash
-unzip QM9.zip -d $DATA_DIR
-unzip DRUGS.zip -d $DATA_DIR
+python scripts/prepare_data.py -p $DATA_DIR/rdkit_folder
 ```
+
+This should create a `processed` folder inside `$DATA_DIR` with the preprocessed data.
 
 ### Training
 We provide our configs for training on the GEOM-DRUGS and the GEOM-QM9 datasets in various configurations. Run the following commands once datasets are preprocessed and the environment is set up:
