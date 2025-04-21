@@ -174,7 +174,6 @@ def main(
 
     # instantiate datamodule and model
     dataset = EuclideanDataset(
-        data_dir=config["datamodule_args"]["data_dir"],
         partition=config["datamodule_args"]["partition"],
         split="test",
     )

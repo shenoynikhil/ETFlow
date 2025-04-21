@@ -17,7 +17,7 @@ class BaseDataModule(pl.LightningDataModule):
 
     def __init__(
         self,
-        data_dir: Path,
+        data_dir: Path | None = None,
         partition: str = "drugs",
         dataloader_args: Dict = {},
     ) -> None:

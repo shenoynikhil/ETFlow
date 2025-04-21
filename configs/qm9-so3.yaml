@@ -7,16 +7,7 @@ seed: 42
 # data config
 datamodule: BaseDataModule
 datamodule_args:
-    dataset: EuclideanDataset
-    dataset_args:
-        data_dir: processed/
-        use_ogb_feat: true
-
-    train_indices_path: QM9/train_indices.npy
-    val_indices_path: QM9/val_indices.npy
-    test_indices_path: QM9/val_indices.npy
-
-    # dataloader args
+    partition: qm9
     dataloader_args:
         batch_size: 128
         num_workers: 4
@@ -103,3 +94,14 @@ trainer_args:
     limit_train_batches: 1000
     strategy: ddp
     accelerator: auto
+
+# eval config
+eval_args:
+    batch_size: 32
+    sampler_args:
+        sampler_type: ode
+        n_timesteps: 50
+        s_churn: 1.0
+        t_min: 0.0001
+        t_max: 0.9999
+        std: 1.0

@@ -3,7 +3,8 @@ Script to process GEOM dataset into individual PyG data files
 ===========================================================
 
 Usage:
-python prepare_data.py -p /path/to/geom/rdkit-raw-folder --output_dir /path/to/output --processed_splits_dir /path/to/splits
+# Set the DATA_DIR environment variable before running this script
+python prepare_data.py -p /path/to/geom/rdkit-raw-folder
 """
 
 import argparse
@@ -17,7 +18,7 @@ from loguru import logger as log
 from torch_geometric.data import Data
 from tqdm import tqdm
 
-from etflow.commons import load_pkl
+from etflow.commons import get_base_data_dir, load_pkl
 
 
 def process_test_mol(mols: list[dm.Mol], partition: str):
@@ -127,7 +128,7 @@ def process_mol(
         return None
 
 
-def main(raw_path: Path, output_dir: Path, processed_splits_dir: Path) -> None:
+def main(raw_path: Path, output_dir: Path, data_dir: Path) -> None:
     log.info(f"Reading files from {raw_path}")
 
     # Create output directories for each partition and split
@@ -151,9 +152,7 @@ def main(raw_path: Path, output_dir: Path, processed_splits_dir: Path) -> None:
 
         # Load molecule summary
         all_pkl_files = list((raw_path / partition).glob("*"))
-        splits = np.load(
-            processed_splits_dir / partition.upper() / "split.npy", allow_pickle=True
-        )
+        splits = np.load(data_dir / partition.upper() / "split.npy", allow_pickle=True)
         train_split_indices = splits[0]
         val_split_indices = splits[1]
 
@@ -190,7 +189,7 @@ def main(raw_path: Path, output_dir: Path, processed_splits_dir: Path) -> None:
 
         # save test set data objects
         test_mols: Dict[str, list[dm.Mol]] = load_pkl(
-            processed_splits_dir / partition.upper() / "test_mols.pkl"
+            data_dir / partition.upper() / "test_mols.pkl"
         )
         for test_mol_id, test_mol in test_mols.items():
             data = process_test_mol(test_mol, partition)
@@ -227,38 +226,30 @@ if __name__ == "__main__":
         "--output_dir",
         "-o",
         type=Path,
-        required=True,
+        required=False,
         help="Directory to save processed files",
-    )
-    parser.add_argument(
-        "--processed_splits_dir",
-        type=Path,
-        required=True,
-        help="Path to the processed splits directory. "
-        "Download the QM9 and DRUGS splits from zenodo and "
-        "extract them in a processed_splits directory",
     )
 
     args = parser.parse_args()
 
     # Verify input paths exist
     assert args.path.exists(), f"Path {args.path} not found"
-    assert (
-        args.processed_splits_dir.exists()
-    ), f"Splits path {args.processed_splits_dir} not found"
-
+    data_dir = Path(get_base_data_dir())
     # Verify the the splits are present
     for partition in ["QM9", "DRUGS"]:
         assert (
-            args.processed_splits_dir / partition / "split.npy"
+            data_dir / partition / "split.npy"
         ).exists(), f"Split not found in {partition}"
         assert (
-            args.processed_splits_dir / partition / "test_mols.pkl"
+            data_dir / partition / "test_mols.pkl"
         ).exists(), f"Test split mols not found in {partition}"
 
     # Create output directory as output_dir/processed
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    output_dir = args.output_dir / "processed"
+    if args.output_dir is not None:
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        output_dir = Path(get_base_data_dir()) / "processed"
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     # Process the data
-    main(args.path, output_dir, args.processed_splits_dir)
+    main(args.path, output_dir, data_dir)

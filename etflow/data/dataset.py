@@ -35,7 +35,7 @@ class EuclideanDataset(Dataset):
 
         # Set up paths
         if data_dir is None:
-            self.data_dir = get_base_data_dir() / "processed"
+            self.data_dir = Path(get_base_data_dir()) / "processed"
         else:
             self.data_dir = Path(data_dir)
 

@@ -43,7 +43,6 @@ def main(config: dict, checkpoint_path: str, output_dir: str, debug: bool):
 
     # instantiate datamodule and model
     dataset = EuclideanDataset(
-        data_dir=config["datamodule_args"]["data_dir"],
         partition=config["datamodule_args"]["partition"],
         split="test",
     )
