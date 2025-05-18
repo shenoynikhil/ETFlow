@@ -1,6 +1,6 @@
 <div align="center">
 
-# ET-Flow
+# ET-Flow: Equivariant Flow Matching for Molecule Conformer Generation
 <a href="https://pytorch.org/get-started/locally/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white"></a>
 <a href="https://pytorchlightning.ai/"><img alt="Lightning" src="https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white"></a>
 [![Conference](http://img.shields.io/badge/NeurIPS-2024-4b44ce.svg)](https://neurips.cc/virtual/2024/poster/94522)
