@@ -32,17 +32,11 @@ class BaseDataModule(pl.LightningDataModule):
     def setup(self, stage: str = None):
         """Prepares data splits for dataloader"""
         # Create train and val datasets for the specified partition
-        print(self.data_dir)
         self.train_dataset = EuclideanDataset(
-            data_dir=self.data_dir,
-            partition=self.partition,
-            split="train",
+            self.data_dir, partition=self.partition, split="train"
         )
-
         self.val_dataset = EuclideanDataset(
-            data_dir=self.data_dir,
-            partition=self.partition,
-            split="val",
+            self.data_dir, partition=self.partition, split="val"
         )
 
     def train_dataloader(self):

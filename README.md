@@ -1,10 +1,9 @@
 <div align="center">
 
-# ET-Flow
+# ET-Flow: Equivariant Flow Matching for Molecule Conformer Generation
 <a href="https://pytorch.org/get-started/locally/"><img alt="PyTorch" src="https://img.shields.io/badge/PyTorch-ee4c2c?logo=pytorch&logoColor=white"></a>
-<a href="https://pytorchlightning.ai/"><img alt="Lightning" src="https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white"></a><br>
+<a href="https://pytorchlightning.ai/"><img alt="Lightning" src="https://img.shields.io/badge/-Lightning-792ee5?logo=pytorchlightning&logoColor=white"></a>
 [![Conference](http://img.shields.io/badge/NeurIPS-2024-4b44ce.svg)](https://neurips.cc/virtual/2024/poster/94522)
-<br>
 [![Checkpoints]( https://img.shields.io/badge/Checkpoints-6AA84F)](https://zenodo.org/records/14226681)
 
 <img src="./img/etflow.png" width="600">
@@ -69,7 +68,7 @@ To pre-process the data, perform the following steps,
 ```bash
 DATA_DIR=</path_to_data>
 wget https://dataverse.harvard.edu/api/access/datafile/4327252 -O $DATA_DIR/rdkit_folder.tar
-tar -zxvf $DATA_DIR/rdkit_folder.tar
+tar -xvf $DATA_DIR/rdkit_folder.tar -C $DATA_DIR
 ```
 
 For the splits and test mols, download the files from the [torsional diffusion](https://drive.google.com/drive/folders/1BBRpaAvvS2hTrH81mAE4WvyLIKMyhwN7?usp=drive_link) and extract them to the respective folders inside `$DATA_DIR`. Ideally it should look like the following (after extracting the zip files),

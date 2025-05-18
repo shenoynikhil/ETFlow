@@ -31,7 +31,6 @@ class BaseFlow(BaseModel):
 
     __prior_types__ = ["gaussian", "harmonic"]
     __interpolation_types__ = ["linear", "gvp", "gvp_w_sigma", "gvp_squared"]
-    __path_types__ = ["standard", "cond_ot_path"]
 
     def __init__(
         self,
@@ -60,60 +59,16 @@ class BaseFlow(BaseModel):
         so3_equivariant: bool = False,
         # flow matching args
         sigma: float = 0.1,
-        interpolation_type: str = "linear",
         prior_type: str = "gaussian",
         sample_time_dist: str = "uniform",
         harmonic_alpha: float = 1.0,
-        path_type: str = "standard",
         parity_switch: Optional[str] = None,
-        # grad norm max value
-        grad_norm_max_val: float = 100.0,
         # make edge_type one_hot
         edge_one_hot: bool = False,
         edge_one_hot_types: int = 5,
-        # optimizer
-        optimizer_type: str = "Adam",
-        lr: float = 1e-3,
-        beta1: float = 0.95,
-        beta2: float = 0.999,
-        weight_decay: float = 0.0,
-        # lr scheduler args
-        lr_scheduler_type: Optional[str] = "plateau",
-        factor: float = 0.6,
-        patience: int = 10,
-        first_cycle_steps: int = 1000,
-        cycle_mult: float = 1.0,
-        max_lr: float = 0.0001,
-        min_lr: float = 1.0e-08,
-        warmup_steps: int = 10000,
-        gamma: float = 0.75,
-        last_epoch: int = -1,
-        lr_scheduler_monitor: str = "val/loss",
-        lr_scheduler_interval: str = "epoch",
-        lr_scheduler_frequency: int = 1,
+        **kwargs,
     ):
-        super().__init__(
-            optimizer_type=optimizer_type,
-            lr=lr,
-            beta1=beta1,
-            beta2=beta2,
-            weight_decay=weight_decay,
-            grad_norm_max_val=grad_norm_max_val,
-            lr_scheduler_type=lr_scheduler_type,
-            factor=factor,
-            patience=patience,
-            first_cycle_steps=first_cycle_steps,
-            cycle_mult=cycle_mult,
-            max_lr=max_lr,
-            min_lr=min_lr,
-            warmup_steps=warmup_steps,
-            gamma=gamma,
-            last_epoch=last_epoch,
-            lr_scheduler_monitor=lr_scheduler_monitor,
-            lr_scheduler_interval=lr_scheduler_interval,
-            lr_scheduler_frequency=lr_scheduler_frequency,
-        )
-
+        super().__init__(**kwargs)
         # setup network
         if network_type == "TorchMDDynamics":
             self.network = TorchMDDynamics(
@@ -139,20 +94,16 @@ class BaseFlow(BaseModel):
                 so3_equivariant=so3_equivariant,
             )
         else:
-            raise NotImplementedError(
-                f"Network type {network_type} not implemented for BaseFlow"
-            )
+            raise NotImplementedError(f"Network {network_type} not implemented.")
 
         self.sigma = sigma
         self.cutoff = cutoff_upper
         self.parity_switch = parity_switch
         self.prior_type = prior_type
-        self.interpolation_type = interpolation_type
         self.sample_time_dist = sample_time_dist
         self.edge_one_hot = edge_one_hot
         self.edge_one_hot_types = edge_one_hot_types
         self.max_num_neighbors = max_num_neighbors
-        self.path_type = path_type
 
         if parity_switch is not None:
             assert (
@@ -163,16 +114,6 @@ class BaseFlow(BaseModel):
             self.prior_type in self.__prior_types__
         ), f"""\nPrior type {prior_type} not available.
             This is the list of implemented prior types {self.__prior_types__}.\n"""
-
-        assert (
-            self.interpolation_type in self.__interpolation_types__
-        ), f"""\Interpolation type {interpolation_type} not available.
-            This is the list of implemented interpolations {self.__interpolation_types__}.\n"""
-
-        assert (
-            self.path_type in self.__path_types__
-        ), f"""\Interpolation type {path_type} not available.
-            This is the list of implemented interpolations {self.__path_types__}.\n"""
 
         if prior_type == "harmonic":
             self.harmonic_sampler = HarmonicSampler(alpha=harmonic_alpha)
@@ -190,7 +131,10 @@ class BaseFlow(BaseModel):
 
     @classmethod
     def from_default(
-        cls, model: str = "drugs-o3", device: str = "cuda", cache: Optional[str] = None
+        cls,
+        model: str = "drugs-o3",
+        device: str | torch.DeviceObjType = "cuda",
+        cache: Optional[str] = None,
     ):
         model = model.lower()
         if model not in CONFIG_DICT:
@@ -204,7 +148,9 @@ class BaseFlow(BaseModel):
             checkpoint_path = config.checkpoint_config.fetch_checkpoint().local_path
 
         found_device = get_device()
-        if device != found_device and device != "cpu":
+        if isinstance(device, str):
+            device = torch.device(device)
+        if device != found_device and device != torch.device("cpu"):
             print(f"Device {device} not found. Using {found_device} instead")
             device = found_device
 
@@ -220,75 +166,13 @@ class BaseFlow(BaseModel):
         etflow_model.eval()
         return etflow_model
 
-    def alpha_t(self, t):
-        if self.interpolation_type == "linear":
-            return t
-        elif self.interpolation_type == "gvp":
-            return torch.sin(0.5 * torch.pi * t)
-        elif self.interpolation_type == "gvp_w_sigma":
-            return torch.sqrt(1 - self.sigma_t(t) ** 2) * torch.sin(0.5 * torch.pi * t)
-        elif self.interpolation_type == "gvp_squared":
-            return torch.sin(0.5 * torch.pi * t) ** 2
-
-    def beta_t(self, t):
-        if self.interpolation_type == "linear":
-            return 1 - t
-        elif self.interpolation_type == "gvp":
-            return torch.cos(0.5 * torch.pi * t)
-        elif self.interpolation_type == "gvp_w_sigma":
-            return torch.sqrt(1 - self.sigma_t(t) ** 2) * torch.cos(0.5 * torch.pi * t)
-        elif self.interpolation_type == "gvp_squared":
-            return torch.cos(0.5 * torch.pi * t) ** 2
-
-    def alpha_dot_t(self, t):
-        if self.interpolation_type == "linear":
-            return 1
-        elif self.interpolation_type == "gvp":
-            return 0.5 * torch.pi * torch.cos(0.5 * torch.pi * t)
-        elif self.interpolation_type == "gvp_w_sigma":
-            return -self.sigma_dot_t(t) / torch.sqrt(
-                1 - self.sigma_t(t) ** 2
-            ) * torch.sin(0.5 * torch.pi * t) + 0.5 * torch.pi * torch.cos(
-                0.5 * torch.pi * t
-            )
-        elif self.interpolation_type == "gvp_squared":
-            return (
-                torch.pi * torch.sin(0.5 * torch.pi * t) * torch.cos(0.5 * torch.pi * t)
-            )
-
-    def beta_dot_t(self, t):
-        if self.interpolation_type == "linear":
-            return -1
-        elif self.interpolation_type == "gvp":
-            return -0.5 * torch.pi * torch.sin(0.5 * torch.pi * t)
-        elif self.interpolation_type == "gvp_w_sigma":
-            return -self.sigma_dot_t(t) / torch.sqrt(
-                1 - self.sigma_t(t) ** 2
-            ) * torch.cos(0.5 * torch.pi * t) - 0.5 * torch.pi * torch.sin(
-                0.5 * torch.pi * t
-            )
-        elif self.interpolation_type == "gvp_squared":
-            return (
-                -torch.pi
-                * torch.cos(0.5 * torch.pi * t)
-                * torch.sin(0.5 * torch.pi * t)
-            )
-
-    def interpolate(self, x0, x1, t):
-        return self.alpha_t(t) * x1 + self.beta_t(t) * x0
-
-    def dtIt(self, x0, x1, t):
-        return self.alpha_dot_t(t) * x1 + self.beta_dot_t(t) * x0
-
     def sigma_t(self, t):
         return self.sigma * torch.sqrt(t * (1 - t))
 
     def sigma_dot_t(self, t):
         return self.sigma * 0.5 * (1 - 2 * t) / torch.sqrt(t * (1 - t))
 
-    def sample_conditional_pt(
-        self, x0: Tensor, x1: Tensor, t: Tensor, batch: Tensor, return_eps: bool = False
-    ):
+    def sample_conditional_pt(self, x0: Tensor, x1: Tensor, t: Tensor, batch: Tensor):
         # Have this here in case sample_conditional_pt
         # is used outside of compute_conditional_vector_field
         # center both x0 and pos (x1: data distribution)
@@ -305,37 +189,23 @@ class BaseFlow(BaseModel):
 
         # center each around center of mass
         eps = center_of_mass(eps, batch=batch)
-        mu_t = self.interpolate(x0=x0, x1=x1, t=t)
+        mu_t = t * x1 + (1 - t) * x0
 
         # no noise at t = 0 or t = 1
         x_t = mu_t + self.sigma_t(t) * eps
 
-        if return_eps:
-            return x_t, eps
-
-        return x_t
+        return x_t, eps
 
     def compute_conditional_vector_field(self, x0, x1, t, batch=None):
         if batch is None:
             batch = torch.zeros((x1.size(0),)).to(self.device)
 
-        # center both x0 and pos (x1: data distribution)
-        x0 = center_of_mass(x0, batch=batch)
-        x1 = center_of_mass(x1, batch=batch)
-
         # sample a gaussian centered around the interpolation of x1, x0
-        x_t, eps = self.sample_conditional_pt(x0, x1, t, batch=batch, return_eps=True)
+        x_t, eps = self.sample_conditional_pt(x0, x1, t, batch=batch)
         t = unsqueeze_like(t[batch], x1)
 
         # derivative of interpolate plus derivative of sigma function * noise
-        if self.path_type == "cond_ot_path":
-            coef = self.alpha_dot_t(t) / (1 - self.alpha_t(t))
-            u_t = (
-                coef * (x1 - self.interpolate(x0=x0, x1=x1, t=t))
-                + self.sigma_dot_t(t) * eps
-            )
-        else:
-            u_t = self.dtIt(x0, x1, t) + self.sigma_dot_t(t) * eps
+        u_t = x1 - x0 + self.sigma_dot_t(t) * eps
 
         return x_t, u_t
 
@@ -364,19 +234,25 @@ class BaseFlow(BaseModel):
     def sample_base_dist(
         self,
         size: torch.Size,
-        edge_index: Optional[torch.Tensor] = None,
-        batch: Optional[torch.Tensor] = None,
+        edge_index: Optional[Tensor] = None,
+        batch: Optional[Tensor] = None,
         smiles: Optional[str] = None,
-    ):
-        if self.prior_type == "gaussian":
-            x0 = torch.randn(size=size, device=self.device)
-        elif self.prior_type == "harmonic":
+    ) -> Tensor:
+        """Sample from prior distribution (Either harmonic or gaussian)"""
+        if self.prior_type == "harmonic":
             assert (edge_index is not None) and (batch is not None)
             x0 = self.harmonic_sampler.sample(
                 size=size, edge_index=edge_index, batch=batch, smiles=smiles
             ).to(self.device)
 
-        return x0
+            # check if x0 is nan
+            if torch.isnan(x0).any():
+                raise ValueError("x0 is NaN. Check edge_index for disconnected graphs!")
+
+            return x0
+
+        # gaussian prior if not harmonic
+        return torch.randn(size=size, device=self.device)
 
     def sample_time(
         self,
@@ -385,19 +261,17 @@ class BaseFlow(BaseModel):
         high: float = 0.9999,
         stage: str = "train",
     ):
-        # batch_size = batch.max().item() + 1
+        """Sample flow-matching time steps for training or validation"""
         if self.sample_time_dist == "uniform" or stage == "val":
-            # TODO: remove this later on, to remain consistent with val metrics
-            # clamp to ensure numerical stability
             return torch.zeros(size=(num_samples, 1), device=self.device).uniform_(
                 low, high
             )
         elif self.sample_time_dist == "logit_norm":
-            return torch.sigmoid(torch.randn(size=(num_samples, 1))).to(self.device)
-        else:
-            raise NotImplementedError(
-                f"Sample time distribution {self.sample_time_dist} not implemented"
-            )
+            return torch.sigmoid(torch.randn(size=(num_samples, 1), device=self.device))
+
+        raise NotImplementedError(
+            f"Time sampling with {self.sample_time_dist} not implemented"
+        )
 
     def forward(
         self,
@@ -464,10 +338,6 @@ class BaseFlow(BaseModel):
 
         if self.prior_type == "harmonic":
             x0 = rmsd_align(pos=x0, ref_pos=pos, batch=batch)
-
-        # check if x0 is nan
-        if torch.isnan(x0).any():
-            raise ValueError("x0 is NaN. Fix bug in harmonic alignment!")
 
         # sample conditional vector field for positions
         x_t, u_t = self.compute_conditional_vector_field(

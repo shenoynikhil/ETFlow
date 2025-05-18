@@ -43,7 +43,6 @@ model_args:
     # flow matching specific
     sigma: 0.1
     prior_type: gaussian
-    interpolation_type: linear
 
     # optimizer args
     optimizer_type: AdamW
@@ -91,7 +90,7 @@ trainer: Trainer
 trainer_args:
     max_epochs: 1000
     devices: 4
-    strategy: ddp
+    strategy: auto
     accelerator: auto
 
 
