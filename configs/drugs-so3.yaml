@@ -91,7 +91,7 @@ trainer_args:
     max_epochs: 150
     devices: 8
     limit_train_batches: 5000
-    strategy: ddp
+    strategy: auto
     accelerator: auto
 
 # eval config

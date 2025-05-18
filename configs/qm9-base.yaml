@@ -91,7 +91,7 @@ trainer: Trainer
 trainer_args:
     max_epochs: 1000
     devices: 4
-    strategy: ddp
+    strategy: auto
     accelerator: auto
 
 
