@@ -276,9 +276,6 @@ if __name__ == "__main__":
         required=False,
         help="Directory to save processed files",
     )
-    parser.add_argument(
-        "--remove_disconnected_components",
-    )
 
     args = parser.parse_args()
 
