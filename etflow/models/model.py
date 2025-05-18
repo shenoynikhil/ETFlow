@@ -190,7 +190,10 @@ class BaseFlow(BaseModel):
 
     @classmethod
     def from_default(
-        cls, model: str = "drugs-o3", device: str = "cuda", cache: Optional[str] = None
+        cls,
+        model: str = "drugs-o3",
+        device: str | torch.DeviceObjType = "cuda",
+        cache: Optional[str] = None,
     ):
         model = model.lower()
         if model not in CONFIG_DICT:
@@ -204,7 +207,9 @@ class BaseFlow(BaseModel):
             checkpoint_path = config.checkpoint_config.fetch_checkpoint().local_path
 
         found_device = get_device()
-        if device != found_device and device != "cpu":
+        if isinstance(device, str):
+            device = torch.device(device)
+        if device != found_device and device != torch.device("cpu"):
             print(f"Device {device} not found. Using {found_device} instead")
             device = found_device
 

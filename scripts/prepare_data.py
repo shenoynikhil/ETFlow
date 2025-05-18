@@ -8,6 +8,7 @@ python prepare_data.py -p /path/to/geom/rdkit-raw-folder
 """
 
 import argparse
+import hashlib
 from pathlib import Path
 from typing import Dict, Optional
 
@@ -19,6 +20,44 @@ from torch_geometric.data import Data
 from tqdm import tqdm
 
 from etflow.commons import get_base_data_dir, load_pkl
+
+
+def check_disconnected_components(mol):
+    """Check for disconnected components using Union-Find algorithm."""
+    # Initialize parent array for union-find
+    n_nodes = mol.GetNumAtoms()
+    parent = list(range(n_nodes))
+
+    edge_index = []
+    for bond in mol.GetBonds():
+        i = bond.GetBeginAtomIdx()
+        j = bond.GetEndAtomIdx()
+        edge_index.append([i, j])
+        edge_index.append([j, i])  # Add reverse edge for undirected graph
+    edge_index = torch.tensor(edge_index, dtype=torch.long).t()
+
+    def find(x):
+        if parent[x] != x:
+            parent[x] = find(parent[x])
+        return parent[x]
+
+    def union(x, y):
+        parent[find(x)] = find(y)
+
+    # Process all edges
+    for i in range(edge_index.shape[1]):
+        src, dst = edge_index[0, i], edge_index[1, i]
+        union(src, dst)
+
+    # Count unique components
+    components = {}
+    for node in range(n_nodes):
+        root = find(node)
+        if root not in components:
+            components[root] = []
+        components[root].append(node)
+
+    return list(components.values())
 
 
 def process_test_mol(mols: list[dm.Mol], partition: str):
@@ -111,6 +150,12 @@ def process_mol(
         energies = torch.stack(energies)  # [num_conformers, 1]
         boltzmann_weights = torch.stack(boltzmann_weights)  # [num_conformers, 1]
 
+        # Check for disconnected components
+        components = check_disconnected_components(mol)
+        if len(components) > 1:
+            log.warning(f"Skipping {smiles} due to disconnected components")
+            return None
+
         # Create single PyG Data object with all conformers
         data = Data(
             atomic_numbers=atomic_numbers,  # [num_atoms]
@@ -188,6 +233,7 @@ def main(raw_path: Path, output_dir: Path, data_dir: Path) -> None:
                 stats[partition][split]["mols"] += 1
 
         # save test set data objects
+        log.info(f"Processing test molecules for {partition}")
         test_mols: Dict[str, list[dm.Mol]] = load_pkl(
             data_dir / partition.upper() / "test_mols.pkl"
         )
@@ -197,7 +243,8 @@ def main(raw_path: Path, output_dir: Path, data_dir: Path) -> None:
                 skipped_mols += 1
                 continue
 
-            save_path = output_dir / partition / "test" / f"{test_mol_id}.pt"
+            safe_test_mol_id = hashlib.md5(test_mol_id.encode()).hexdigest()
+            save_path = output_dir / partition / "test" / f"{safe_test_mol_id}.pt"
             torch.save(data, save_path)
 
     # Log statistics
@@ -228,6 +275,9 @@ if __name__ == "__main__":
         type=Path,
         required=False,
         help="Directory to save processed files",
+    )
+    parser.add_argument(
+        "--remove_disconnected_components",
     )
 
     args = parser.parse_args()
