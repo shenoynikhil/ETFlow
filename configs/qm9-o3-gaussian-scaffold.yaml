@@ -44,7 +44,6 @@ model_args:
     # flow matching specific
     sigma: 0.1
     prior_type: gaussian
-    interpolation_type: linear
 
     # optimizer args
     optimizer_type: AdamW

@@ -21,3 +21,6 @@ errors/
 outputs/
 .ipynb_checkpoints/
 slurm/
+
+# data
+data/

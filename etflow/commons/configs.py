@@ -121,7 +121,6 @@ class ModelArgsSchema(BaseConfigSchema):
     # flow matching specific
     sigma: float = 0.1
     prior_type: Literal["harmonic"] = "harmonic"
-    interpolation_type: Literal["linear"] = "linear"
 
     # optimizer args
     optimizer_type: Literal["AdamW"] = "AdamW"
