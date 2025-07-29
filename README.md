@@ -64,6 +64,10 @@ python3 -m pip install -e .
 
 
 ### Preprocessing Data
+
+> [!IMPORTANT]
+> I have changed some parts of the data preprocessing scripts to make it more efficient. However, these changes might mean that the configs might not lead to the same results as the one reported in the paper. I am working on reproducing the results with the new preprocessed data format. Thanks for your patience.
+
 To pre-process the data, perform the following steps,
 1. Download the raw GEOM and unzip the raw data using the following commands,
 
