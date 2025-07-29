@@ -51,6 +51,8 @@ We currently support the following configurations and checkpoint:
 
 **Option 2**: Load the model config, download checkpoints from the following zenodo [link](https://zenodo.org/records/14226681) and load it manually into the model config. We have a sample notebook ([generate_confs.ipynb](generate_confs.ipynb)) to generate conformations for custom smiles input. One needs to pass the config and corresponding checkpoint path in order as additional inputs.
 
+Note: Scaffold Splits and Checkpoints are stored at the following zenodo [link](https://zenodo.org/records/16551316).
+
 ### Setup Dev Environment
 Run the following commands to setup the environment:
 ```bash
@@ -122,9 +124,6 @@ The above sample generation script should created a `generated_files.pkl` at the
 ```bash
 python scripts/eval_cov_mat.py --path=<path-to-generated-files.pkl> --num_workers=10
 ```
-
-### Loading a Pre-Trained Checkpoint
-Coming Soon!
 
 ### Acknowledgements
 Our codebase is built using the following open-source contributions,
